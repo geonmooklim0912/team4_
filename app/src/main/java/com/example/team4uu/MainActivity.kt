@@ -36,14 +36,22 @@ import com.example.team4uu.viewmodel.FriendViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -256,6 +264,9 @@ fun CameraScreen(onClose: () -> Unit, onPhotoCaptured: (String) -> Unit) {
         ) {
             CameraPreview(imageCapture = imageCapture)
 
+            // 딤 처리 + 가이드 프레임을 버튼/팁보다 먼저 그려서, 버튼과 팁 텍스트는 딤에 가려지지 않게 함
+            CameraOverlayGuides(modifier = Modifier.fillMaxSize())
+
             IconButton(
                 onClick = onClose,
                 modifier = Modifier
@@ -269,12 +280,6 @@ fun CameraScreen(onClose: () -> Unit, onPhotoCaptured: (String) -> Unit) {
                     tint = Color.White
                 )
             }
-
-            CameraOverlayGuides(
-                modifier = Modifier
-                    .size(width = 250.dp, height = 350.dp)
-                    .align(Alignment.Center)
-            )
 
             CameraTipBox(
                 modifier = Modifier
@@ -294,10 +299,10 @@ fun CameraScreen(onClose: () -> Unit, onPhotoCaptured: (String) -> Unit) {
             Box(
                 modifier = Modifier
                     .size(80.dp)
-                    .border(6.dp, Color(0xFFE0E0E0), CircleShape)
+                    .border(6.dp, Color(0xFFF8BBD0), CircleShape)
                     .padding(8.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFD1D1D1))
+                    .background(Color(0xFFE91E63))
                     .clickable {
                         takePhoto(context, imageCapture, onPhotoCaptured)
                     }
@@ -334,17 +339,40 @@ private fun takePhoto(context: Context, imageCapture: ImageCapture, onPhotoCaptu
 }
 
 @Composable
-fun CameraOverlayGuides(modifier: Modifier = Modifier) {
+fun CameraOverlayGuides(modifier: Modifier = Modifier, guideSize: DpSize = DpSize(250.dp, 350.dp)) {
     Canvas(modifier = modifier) {
+        val guideWidthPx = guideSize.width.toPx()
+        val guideHeightPx = guideSize.height.toPx()
+        val left = (size.width - guideWidthPx) / 2f
+        val top = (size.height - guideHeightPx) / 2f
+        val right = left + guideWidthPx
+        val bottom = top + guideHeightPx
+
+        // 반투명 딤 처리: 전체를 어둡게 칠한 뒤 가이드 프레임 영역만 투명하게 뚫어줌.
+        // BlendMode.Clear가 카메라 프리뷰까지 지워버리지 않도록 별도 레이어(saveLayer)에서 처리.
+        drawIntoCanvas { canvas ->
+            canvas.saveLayer(Rect(Offset.Zero, size), Paint())
+            drawRect(color = Color.Black.copy(alpha = 0.55f), size = size)
+            drawRoundRect(
+                color = Color.Transparent,
+                topLeft = Offset(left, top),
+                size = Size(guideWidthPx, guideHeightPx),
+                cornerRadius = CornerRadius(24.dp.toPx()),
+                blendMode = BlendMode.Clear
+            )
+            canvas.restore()
+        }
+
+        // 네 모서리 ㄱ자 프레임
         val strokeWidth = 6.dp.toPx()
         val cornerSize = 30.dp.toPx()
-        val color = Color.White.copy(alpha = 0.8f)
+        val color = Color.White.copy(alpha = 0.9f)
 
         drawPath(
             path = Path().apply {
-                moveTo(0f, cornerSize)
-                lineTo(0f, 0f)
-                lineTo(cornerSize, 0f)
+                moveTo(left, top + cornerSize)
+                lineTo(left, top)
+                lineTo(left + cornerSize, top)
             },
             color = color,
             style = Stroke(width = strokeWidth)
@@ -352,9 +380,9 @@ fun CameraOverlayGuides(modifier: Modifier = Modifier) {
 
         drawPath(
             path = Path().apply {
-                moveTo(size.width - cornerSize, 0f)
-                lineTo(size.width, 0f)
-                lineTo(size.width, cornerSize)
+                moveTo(right - cornerSize, top)
+                lineTo(right, top)
+                lineTo(right, top + cornerSize)
             },
             color = color,
             style = Stroke(width = strokeWidth)
@@ -362,9 +390,9 @@ fun CameraOverlayGuides(modifier: Modifier = Modifier) {
 
         drawPath(
             path = Path().apply {
-                moveTo(0f, size.height - cornerSize)
-                lineTo(0f, size.height)
-                lineTo(cornerSize, size.height)
+                moveTo(left, bottom - cornerSize)
+                lineTo(left, bottom)
+                lineTo(left + cornerSize, bottom)
             },
             color = color,
             style = Stroke(width = strokeWidth)
@@ -372,9 +400,9 @@ fun CameraOverlayGuides(modifier: Modifier = Modifier) {
 
         drawPath(
             path = Path().apply {
-                moveTo(size.width - cornerSize, size.height)
-                lineTo(size.width, size.height)
-                lineTo(size.width, size.height - cornerSize)
+                moveTo(right - cornerSize, bottom)
+                lineTo(right, bottom)
+                lineTo(right, bottom - cornerSize)
             },
             color = color,
             style = Stroke(width = strokeWidth)
