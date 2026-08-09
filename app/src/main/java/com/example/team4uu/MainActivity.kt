@@ -30,6 +30,9 @@ import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.team4uu.data.Friend
+import com.example.team4uu.viewmodel.FriendViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,9 +68,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable //화면을 그리는 함수라는 의미의 어노테이션
-fun MainScreen() {
+fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     var showCamera by remember { mutableStateOf(false) } //ShowCamera 값이 바뀌면 화면을 다시만드는 상태 객체
     val context = LocalContext.current //현재 앱의 컨텍스트를 갖고 옴(권환 확인 시스템 기능을 쓸 때 필요)
+    val friends by friendViewModel.friends.collectAsState() // Room DB에 저장된 친구 목록(실시간 반영)
+
     //카메라 권한 요청을 띄우는 팝업
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -78,8 +83,29 @@ fun MainScreen() {
 
     }
 
+    fun requestCameraOrOpen() { //친구 만들기 버튼(온보딩/메인 홈 공통)을 눌렀을 때
+        //카메라 권한이 있는지 확인
+        val permissionCheckResult = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        )
+        // 권한이 있을 때, 바로 카메라 화면을 띄움
+        if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+            showCamera = true
+        } else { //권한이 없으면 권한 요청 팝업을 띄움
+            permissionLauncher.launch(Manifest.permission.CAMERA) //위에서 생성한 런처 객체 (여기서는 카메라 권한을 요청으로 넣음)
+        }
+    }
+
     if (showCamera) {
-        CameraScreen(onClose = { showCamera = false }) //카메라 화면을 띄우지만 닫기를 누르면 showCamera를 false
+        CameraScreen(
+            onClose = { showCamera = false }, //카메라 화면을 띄우지만 닫기를 누르면 showCamera를 false
+            onPhotoCaptured = { imagePath ->
+                // TODO(F4): 지금은 임시 이름으로 저장. 이름 입력 다이얼로그가 만들어지면 그 값으로 대체.
+                friendViewModel.addFriend(name = "친구 ${friends.size + 1}", imagePath = imagePath)
+                showCamera = false
+            }
+        )
     } else { //카메라를 보여줄 상황이 아니면 메인 화면을 띄움
         Scaffold(//화면의 기본 뼈대를 잡아주는 compose의 부품임
             modifier = Modifier.fillMaxSize(),
@@ -91,21 +117,12 @@ fun MainScreen() {
                     .padding(innerPadding)
                     .background(Color(0xFFD1D1D1))
             ) {
-                EmptyFriendContent(
-                    onMakeFriendClick = { //친구 만들기 버튼을 눌렀을 때
-                        //카메라 권한이 있는지 확인
-                        val permissionCheckResult = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.CAMERA
-                        )
-                        // 권한이 있을 때, 바로 카메라 화면을 띄움
-                        if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
-                            showCamera = true
-                        } else { //권한이 없으면 권한 요청 팝업을 띄움
-                            permissionLauncher.launch(Manifest.permission.CAMERA) //위에서 생성한 런처 객체 (여기서는 카메라 권한을 요청으로 넣음)
-                        }
-                    }
-                )
+                // 친구 목록 조회 결과로 분기: 0마리면 온보딩, 1마리 이상이면 메인 홈
+                if (friends.isEmpty()) {
+                    EmptyFriendContent(onMakeFriendClick = ::requestCameraOrOpen)
+                } else {
+                    MainHomeContent(friends = friends, onAddFriendClick = ::requestCameraOrOpen)
+                }
             }
         }
     }
@@ -136,6 +153,39 @@ fun EmptyFriendContent(onMakeFriendClick: () -> Unit) {
         ) {
             Text(text = "친구 만들기", color = Color.Black, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+// F6(메인 홈 연출)이 만들어지기 전까지 쓰는 임시 화면.
+// 데이터 계층(F5)이 실제로 동작하는지 확인하는 용도로, 저장된 친구 이름만 나열함.
+@Composable
+fun MainHomeContent(friends: List<Friend>, onAddFriendClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "등록된 친구 ${friends.size}마리",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        friends.forEach { friend ->
+            Text(text = "• ${friend.name}", fontSize = 16.sp, color = Color.Black)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onAddFriendClick) {
+            Text(text = "+ 친구 추가")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "(메인 홈 화면은 F6에서 구현 예정)",
+            fontSize = 12.sp,
+            color = Color.DarkGray
+        )
     }
 }
 
@@ -185,7 +235,7 @@ fun BottomNavItem(modifier: Modifier = Modifier, text: String, icon: ImageVector
 }
 
 @Composable
-fun CameraScreen(onClose: () -> Unit) {
+fun CameraScreen(onClose: () -> Unit, onPhotoCaptured: (String) -> Unit) {
     val context = LocalContext.current
     val imageCapture = remember { ImageCapture.Builder().build() }
 
@@ -249,14 +299,14 @@ fun CameraScreen(onClose: () -> Unit) {
                     .clip(CircleShape)
                     .background(Color(0xFFD1D1D1))
                     .clickable {
-                        takePhoto(context, imageCapture)
+                        takePhoto(context, imageCapture, onPhotoCaptured)
                     }
             )
         }
     }
 }
 
-private fun takePhoto(context: Context, imageCapture: ImageCapture) {
+private fun takePhoto(context: Context, imageCapture: ImageCapture, onPhotoCaptured: (String) -> Unit) {
     val outputDirectory = context.cacheDir
     val photoFile = File(
         outputDirectory,
@@ -277,6 +327,7 @@ private fun takePhoto(context: Context, imageCapture: ImageCapture) {
             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                 Log.d("CameraScreen", "Photo capture succeeded: ${photoFile.absolutePath}")
                 Toast.makeText(context, "사진이 저장되었습니다!", Toast.LENGTH_SHORT).show()
+                onPhotoCaptured(photoFile.absolutePath)
             }
         }
     )
