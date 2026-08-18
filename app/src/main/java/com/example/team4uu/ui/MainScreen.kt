@@ -27,8 +27,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
+import com.example.team4uu.data.ChildProfileStore
 import com.example.team4uu.data.Friend
 import com.example.team4uu.ui.components.DEFAULT_MISSION_TAGS
+import com.example.team4uu.ui.components.DollErrorDialog
+import com.example.team4uu.ui.components.DollLoadingDialog
 import com.example.team4uu.ui.components.FeedMissionDialog
 import com.example.team4uu.ui.screens.CameraScreen
 import com.example.team4uu.ui.screens.EmptyFriendContent
@@ -58,7 +61,13 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     var isLoggedIn by remember { mutableStateOf(false) } // TODO: 백엔드 인증 연동 후 실제 로그인 상태(토큰 존재 여부 등)로 교체
     var authStep by remember { mutableStateOf(AuthStep.LOGIN) }
     val context = LocalContext.current //현재 앱의 컨텍스트를 갖고 옴(권환 확인 시스템 기능을 쓸 때 필요)
+    // 회원가입에서 받은 아이 이름·나이를 담아둔다. 대화(WS /doll/talk)를 열 때 쿼리로 붙이면
+    // 인형이 아이 이름을 불러준다. remember 로 감싸야 리컴포지션마다 다시 만들지 않는다.
+    val childProfileStore = remember(context) { ChildProfileStore(context) }
     val friends by friendViewModel.friends.collectAsState() // Room DB에 저장된 친구 목록(실시간 반영)
+    // 촬영 -> AI 서버 변환(약 28초) -> 스프라이트 저장까지의 진행 상태.
+    // 이 값에 따라 아래쪽에서 로딩/에러 모달을 띄운다.
+    val registrationState by friendViewModel.registrationState.collectAsState()
 
     //카메라 권한 요청을 띄우는 팝업
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -113,8 +122,11 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                     onSignUpClick = { authStep = AuthStep.SIGNUP }
                 )
                 AuthStep.SIGNUP -> SignUpScreen(
-                    onSignUpComplete = {
-                        // TODO: 백엔드 회원가입 API 연동 전까지는 입력값과 무관하게 가입 성공으로 간주
+                    onSignUpComplete = { profile ->
+                        // TODO: 백엔드 회원가입 API 연동 전까지는 아이디/비밀번호/이메일은 검증 없이 가입 성공으로 간주.
+                        // 다만 아이 이름·나이는 실제로 쓰이는 값이라(인형이 이름을 부른다) 저장한다.
+                        // 회원 저장소가 생기면 ChildProfileStore 만 그쪽으로 갈아끼우면 된다.
+                        childProfileStore.save(profile)
                         isLoggedIn = true
                     },
                     onBackToLogin = { authStep = AuthStep.LOGIN }
@@ -127,7 +139,10 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
             onPhotoCaptured = { imagePath ->
                 // TODO(F4): 등록 완료 후 이름을 입력받는 다이얼로그가 아직 없어서, 임시로 고정 이름("곰돌이")을
                 // 사용함. 이름 입력 UI가 생기면 사용자가 입력한 값으로 교체.
-                friendViewModel.addFriend(name = "곰돌이", imagePath = imagePath)
+                //
+                // 사진을 AI 서버로 보내 2D 캐릭터로 변환한 뒤 Room 에 저장한다(약 28초).
+                // 카메라를 바로 닫아도 변환은 계속 진행되고, 그동안 아래에서 로딩 모달이 뜬다.
+                friendViewModel.registerFriend(name = "곰돌이", photoPath = imagePath)
                 showCamera = false
             }
         )
@@ -197,6 +212,23 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                 feedingFriend = missionFriend
                 missionSelectionFriend = null
             }
+        )
+    }
+
+    // 인형 등록 진행/실패 모달. 어느 화면에 있든 위에 떠야 하므로 라우팅 밖에 둔다.
+    when (val state = registrationState) {
+        FriendViewModel.RegistrationState.Idle -> Unit
+
+        FriendViewModel.RegistrationState.InProgress -> DollLoadingDialog()
+
+        is FriendViewModel.RegistrationState.Failed -> DollErrorDialog(
+            error = state.error,
+            onRetake = {
+                friendViewModel.dismissRegistrationError()
+                requestCameraOrOpen()
+            },
+            onRetry = { friendViewModel.retryRegistration() },
+            onDismiss = { friendViewModel.dismissRegistrationError() }
         )
     }
 }
