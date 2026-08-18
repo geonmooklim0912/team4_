@@ -23,4 +23,7 @@ interface FriendDao {
 
     @Delete
     suspend fun delete(friend: Friend)
+
+    @Query("DELETE FROM friends")
+    suspend fun deleteAll()
 }

@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.team4uu.R
 import com.example.team4uu.ui.components.AuthField
-import com.example.team4uu.ui.theme.FriendCardTan
 import com.example.team4uu.ui.theme.FriendIconPink
 import com.example.team4uu.ui.theme.FriendPink
 
@@ -31,10 +30,16 @@ import com.example.team4uu.ui.theme.FriendPink
 private const val TEST_USER_ID = "test"
 private const val TEST_USER_PASSWORD = "1234"
 
+// 테스트용 두 번째 계정: 친구가 하나도 없는 상태(EmptyFriendScreen)를 바로 확인하고 싶을 때 사용
+private const val TEST_USER_ID_2 = "test2"
+private const val TEST_USER_PASSWORD_2 = "12345"
+
 // 신규 사용자 또는 로그아웃 상태에서 앱을 열었을 때 보여지는 로그인 화면.
 // 로그인에 성공하면 기존 메인 화면("시작하기" -> 카메라)으로 넘어감.
+// onLoginClick의 isEmptyTestAccount가 true면 test2 계정으로 로그인한 것 — 친구 목록을 비워서
+// EmptyFriendScreen(온보딩)을 바로 볼 수 있게 함(MainScreen.kt에서 처리).
 @Composable
-fun LoginScreen(onLoginClick: () -> Unit, onSignUpClick: () -> Unit) {
+fun LoginScreen(onLoginClick: (isEmptyTestAccount: Boolean) -> Unit, onSignUpClick: () -> Unit) {
     var userId by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var loginError by remember { mutableStateOf(false) }
@@ -57,14 +62,14 @@ fun LoginScreen(onLoginClick: () -> Unit, onSignUpClick: () -> Unit) {
         ) {
             Spacer(modifier = Modifier.height(140.dp))
             Text(
-                text = "인형과의 특별한 추억을 쌓고싶어.",
+                text = "친구와의 특별한 추억을 쌓고싶어.",
                 fontSize = 15.sp,
                 color = Color.Black,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "친구를 핸드폰 세상 속으로\n데려와 볼까?",
+                text = "인형을 핸드폰 세상 속으로\n데려와 볼까?",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black,
@@ -75,7 +80,7 @@ fun LoginScreen(onLoginClick: () -> Unit, onSignUpClick: () -> Unit) {
             Spacer(modifier = Modifier.height(40.dp))
             AuthField(label = "아이디", value = userId, onValueChange = { userId = it }, placeholder = "아이디를 입력해주세요")
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             AuthField(
                 label = "비밀번호",
                 value = password,
@@ -97,12 +102,17 @@ fun LoginScreen(onLoginClick: () -> Unit, onSignUpClick: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = {
-                    // TODO: 백엔드 로그인 API 연동 전까지는 테스트 계정(test / 1234)으로만 통과
-                    if (userId == TEST_USER_ID && password == TEST_USER_PASSWORD) {
-                        loginError = false
-                        onLoginClick()
-                    } else {
-                        loginError = true
+                    // TODO: 백엔드 로그인 API 연동 전까지는 테스트 계정(test/1234, test2/12345)으로만 통과
+                    when {
+                        userId == TEST_USER_ID && password == TEST_USER_PASSWORD -> {
+                            loginError = false
+                            onLoginClick(false)
+                        }
+                        userId == TEST_USER_ID_2 && password == TEST_USER_PASSWORD_2 -> {
+                            loginError = false
+                            onLoginClick(true)
+                        }
+                        else -> loginError = true
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = FriendPink),
@@ -132,28 +142,19 @@ fun LoginScreen(onLoginClick: () -> Unit, onSignUpClick: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Surface(
-                color = FriendCardTan,
-                shape = RoundedCornerShape(28.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "처음이에요", fontSize = 14.sp, color = Color.DarkGray)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(
-                        text = "가입하기",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = FriendIconPink,
-                        modifier = Modifier.clickable { onSignUpClick() }
-                    )
-                }
+                Text(text = "처음 오셨나요?", fontSize = 14.sp, color = Color.DarkGray)
+                Text(
+                    text = "가입하기",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FriendIconPink,
+                    modifier = Modifier.clickable { onSignUpClick() }
+                )
             }
 
             Spacer(modifier = Modifier.height(40.dp))

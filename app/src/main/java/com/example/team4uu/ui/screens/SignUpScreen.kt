@@ -34,6 +34,7 @@ fun SignUpScreen(onSignUpComplete: () -> Unit, onBackToLogin: () -> Unit) {
     var userId by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordCheck by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
@@ -62,25 +63,17 @@ fun SignUpScreen(onSignUpComplete: () -> Unit, onBackToLogin: () -> Unit) {
 
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "환영해요!",
-                fontSize = 15.sp,
-                color = Color.Black,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "친구를 만나기 위한\n계정을 만들어볼까요?",
+                text = "회원가입",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black,
-                textAlign = TextAlign.Center,
-                lineHeight = 28.sp
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(36.dp))
             AuthField(label = "아이디", value = userId, onValueChange = { userId = it }, placeholder = "사용할 아이디를 입력해주세요")
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             AuthField(
                 label = "비밀번호",
                 value = password,
@@ -89,13 +82,21 @@ fun SignUpScreen(onSignUpComplete: () -> Unit, onBackToLogin: () -> Unit) {
                 isPassword = true
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             AuthField(
                 label = "비밀번호 확인",
                 value = passwordCheck,
                 onValueChange = { passwordCheck = it },
                 placeholder = "비밀번호를 한번 더 입력해주세요",
                 isPassword = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            AuthField(
+                label = "이메일",
+                value = email,
+                onValueChange = { email = it },
+                placeholder = "이메일을 입력해주세요"
             )
 
             Spacer(modifier = Modifier.height(28.dp))

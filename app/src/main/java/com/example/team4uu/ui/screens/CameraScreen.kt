@@ -47,84 +47,68 @@ fun CameraScreen(onClose: () -> Unit, onPhotoCaptured: (String) -> Unit) {
     val context = LocalContext.current
     val imageCapture = remember { ImageCapture.Builder().build() }
 
-    Column(
+    // 카메라 프리뷰가 상태바/내비게이션 바까지 화면 전체를 꽉 채우고, 타이틀/닫기/가이드/셔터는
+    // 전부 그 위에 얹히는 오버레이. 각 요소는 필요한 만큼만 statusBarsPadding/navigationBarsPadding을 씀.
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(CameraBackgroundDark)
-            .statusBarsPadding()
-            .navigationBarsPadding()
     ) {
-        Text(
-            text = "촬영(스캔)",
-            color = Color.White,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 8.dp)
-        )
+        CameraPreview(imageCapture = imageCapture)
 
-        // 카메라 프리뷰 영역: 화면 대부분을 차지하고, 셔터 버튼도 그 위에 겹쳐서 표시
-        Box(
+
+        IconButton(
+            onClick = onClose,
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 16.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .background(Color.Black)
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(16.dp)
         ) {
-            CameraPreview(imageCapture = imageCapture)
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Close",
+                modifier = Modifier.size(32.dp),
+                tint = Color.White
+            )
+        }
 
-            IconButton(
-                onClick = onClose,
+        // 가이드 영역(위쪽, 남는 공간을 채움)과 TIP/셔터 영역(아래쪽, 고정 높이)을 분리해
+        // 화면 크기와 상관없이 TIP 박스가 가이드 모서리와 겹치지 않도록 함
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(16.dp)
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.BottomCenter
             ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Close",
-                    modifier = Modifier.size(32.dp),
-                    tint = Color.White
+                CameraOverlayGuides(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(top = 96.dp, bottom = 12.dp)
+                        .width(320.dp)
                 )
             }
 
-            // 가이드 영역(위쪽, 남는 공간을 채움)과 TIP/셔터 영역(아래쪽, 고정 높이)을 분리해
-            // 화면 크기와 상관없이 TIP 박스가 가이드 모서리와 겹치지 않도록 함
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CameraTipBox()
+                Spacer(modifier = Modifier.height(20.dp))
                 Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    CameraOverlayGuides(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .padding(top = 56.dp, bottom = 12.dp)
-                            .width(260.dp)
-                    )
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CameraTipBox()
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .border(6.dp, FriendPink, CircleShape)
-                            .padding(8.dp)
-                            .clip(CircleShape)
-                            .background(FriendCardTan)
-                            .clickable {
-                                takePhoto(context, imageCapture, onPhotoCaptured)
-                            }
-                    )
-                }
+                        .size(80.dp)
+                        .border(6.dp, FriendPink, CircleShape)
+                        .padding(8.dp)
+                        .clip(CircleShape)
+                        .background(FriendCardTan)
+                        .clickable {
+                            takePhoto(context, imageCapture, onPhotoCaptured)
+                        }
+                )
             }
         }
     }
@@ -160,7 +144,7 @@ private fun takePhoto(context: Context, imageCapture: ImageCapture, onPhotoCaptu
 @Composable
 fun CameraOverlayGuides(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val strokeWidth = 6.dp.toPx()
+        val strokeWidth = 8.dp.toPx()
         val cornerSize = 30.dp.toPx()
         val color = Color.White.copy(alpha = 0.8f)
 
