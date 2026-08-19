@@ -18,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,8 +28,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
+import com.example.team4uu.data.AuthException
+import com.example.team4uu.data.AuthRepository
 import com.example.team4uu.data.ChildProfileStore
 import com.example.team4uu.data.Friend
+import com.example.team4uu.data.TokenStore
 import com.example.team4uu.ui.components.DEFAULT_MISSION_TAGS
 import com.example.team4uu.ui.components.DollErrorDialog
 import com.example.team4uu.ui.components.DollLoadingDialog
@@ -42,6 +46,7 @@ import com.example.team4uu.ui.screens.MissionRoadmapScreen
 import com.example.team4uu.ui.screens.SignUpScreen
 import com.example.team4uu.ui.screens.TestResultScreen
 import com.example.team4uu.viewmodel.FriendViewModel
+import kotlinx.coroutines.launch
 
 private enum class AuthStep { LOGIN, SIGNUP }
 
@@ -64,6 +69,13 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     // 회원가입에서 받은 아이 이름·나이를 담아둔다. 대화(WS /doll/talk)를 열 때 쿼리로 붙이면
     // 인형이 아이 이름을 불러준다. remember 로 감싸야 리컴포지션마다 다시 만들지 않는다.
     val childProfileStore = remember(context) { ChildProfileStore(context) }
+    // 🔴 로그인해서 받은 JWT 보관소. **여기서 한 번 만들어져야** NetworkModule 의
+    //    인터셉터가 토큰을 볼 수 있다(TokenStore.current() 주석 참조).
+    val tokenStore = remember(context) { TokenStore(context) }
+    val authRepository = remember(tokenStore) { AuthRepository(tokenStore) }
+    val scope = rememberCoroutineScope()
+    var isLoggingIn by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
     val friends by friendViewModel.friends.collectAsState() // Room DB에 저장된 친구 목록(실시간 반영)
     // 촬영 -> AI 서버 변환(약 28초) -> 스프라이트 저장까지의 진행 상태.
     // 이 값에 따라 아래쪽에서 로딩/에러 모달을 띄운다.
@@ -111,14 +123,34 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
             when (step) {
                 AuthStep.LOGIN -> LoginScreen(
                     onLoginClick = { isEmptyTestAccount ->
-                        // TODO: 백엔드 로그인 API 연동 전까지는 입력값과 무관하게 로그인 성공으로 간주
-                        // test2 계정은 EmptyFriendScreen(온보딩)을 바로 보고 싶을 때 쓰는 테스트용이라
+                        // 테스트 계정 경로. 서버를 안 거치므로 토큰이 없다 —
+                        // ⚠️ 이 상태로는 인형 등록(stylize)과 대화(talk)가 401 로 실패한다.
+                        // test2 는 EmptyFriendScreen(온보딩)을 바로 보고 싶을 때 쓰는 계정이라
                         // 로그인과 동시에 친구 목록을 비움.
                         if (isEmptyTestAccount) {
                             friendViewModel.clearAllFriends()
                         }
+                        loginError = null
                         isLoggedIn = true
                     },
+                    onServerLogin = { id, password ->
+                        isLoggingIn = true
+                        loginError = null
+                        scope.launch {
+                            try {
+                                // 성공하면 TokenStore 에 JWT 가 들어가고, 그때부터
+                                // NetworkModule 인터셉터가 모든 요청에 헤더를 붙인다.
+                                authRepository.login(id, password)
+                                isLoggedIn = true
+                            } catch (e: AuthException) {
+                                loginError = e.userMessage
+                            } finally {
+                                isLoggingIn = false
+                            }
+                        }
+                    },
+                    isLoggingIn = isLoggingIn,
+                    serverError = loginError,
                     onSignUpClick = { authStep = AuthStep.SIGNUP }
                 )
                 AuthStep.SIGNUP -> SignUpScreen(

@@ -38,11 +38,27 @@ private const val TEST_USER_PASSWORD_2 = "12345"
 // 로그인에 성공하면 기존 메인 화면("시작하기" -> 카메라)으로 넘어감.
 // onLoginClick의 isEmptyTestAccount가 true면 test2 계정으로 로그인한 것 — 친구 목록을 비워서
 // EmptyFriendScreen(온보딩)을 바로 볼 수 있게 함(MainScreen.kt에서 처리).
+// 📌 로그인 경로가 둘이다.
+//   - 테스트 계정(test/test2): 서버를 안 거친다. 화면 흐름만 확인하는 용도로 남겨 뒀다.
+//     ⚠️ **토큰이 없으므로 인형 등록(stylize)과 대화(talk)는 401 로 실패한다.**
+//   - 그 외: 서버에 로그인해 JWT 를 받는다. 실제 기능은 이쪽으로만 동작한다.
+//
+// 서버 호출 자체는 이 화면이 하지 않는다(MainScreen 이 코루틴을 들고 있다).
+// 여기는 입력을 넘기고 결과 문구를 보여줄 뿐이다.
 @Composable
-fun LoginScreen(onLoginClick: (isEmptyTestAccount: Boolean) -> Unit, onSignUpClick: () -> Unit) {
+fun LoginScreen(
+    onLoginClick: (isEmptyTestAccount: Boolean) -> Unit,
+    onSignUpClick: () -> Unit,
+    onServerLogin: (id: String, password: String) -> Unit = { _, _ -> },
+    isLoggingIn: Boolean = false,
+    serverError: String? = null
+) {
     var userId by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var loginError by remember { mutableStateOf(false) }
+
+    // 서버까지 갈 것도 없이 앱에서 막는 경우(빈 칸)만 여기서 쓴다.
+    // 아이디·비밀번호가 틀렸는지는 서버만 알 수 있으므로 serverError 로 온다.
+    var inputError by remember { mutableStateOf<String?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
@@ -89,10 +105,12 @@ fun LoginScreen(onLoginClick: (isEmptyTestAccount: Boolean) -> Unit, onSignUpCli
                 isPassword = true
             )
 
-            if (loginError) {
+            // 입력 문제(빈 칸)가 있으면 그걸 먼저 보여준다. 서버까지 갔다 온 실패는
+            // 그다음이다 — 방금 누른 것에 대한 답이 먼저 보여야 한다.
+            (inputError ?: serverError)?.let { message ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "아이디 또는 비밀번호가 일치하지 않습니다.",
+                    text = message,
                     color = FriendPink,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
@@ -102,26 +120,37 @@ fun LoginScreen(onLoginClick: (isEmptyTestAccount: Boolean) -> Unit, onSignUpCli
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = {
-                    // TODO: 백엔드 로그인 API 연동 전까지는 테스트 계정(test/1234, test2/12345)으로만 통과
+                    inputError = null
                     when {
-                        userId == TEST_USER_ID && password == TEST_USER_PASSWORD -> {
-                            loginError = false
+                        // 테스트 계정은 서버를 안 거친다(화면 흐름 확인용).
+                        // ⚠️ 토큰이 없으므로 인형 등록·대화는 401 로 실패한다.
+                        userId == TEST_USER_ID && password == TEST_USER_PASSWORD ->
                             onLoginClick(false)
-                        }
-                        userId == TEST_USER_ID_2 && password == TEST_USER_PASSWORD_2 -> {
-                            loginError = false
+
+                        userId == TEST_USER_ID_2 && password == TEST_USER_PASSWORD_2 ->
                             onLoginClick(true)
-                        }
-                        else -> loginError = true
+
+                        userId.isBlank() || password.isBlank() ->
+                            inputError = "아이디와 비밀번호를 입력해주세요."
+
+                        // 나머지는 전부 서버로. 맞는지 틀린지는 서버만 안다.
+                        else -> onServerLogin(userId.trim(), password)
                     }
                 },
+                // 연타하면 로그인 요청이 여러 번 나간다.
+                enabled = !isLoggingIn,
                 colors = ButtonDefaults.buttonColors(containerColor = FriendPink),
                 shape = RoundedCornerShape(30.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                Text(text = "로그인", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    text = if (isLoggingIn) "로그인 중..." else "로그인",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
