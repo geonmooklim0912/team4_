@@ -30,6 +30,9 @@ class TalkException(
     companion object {
         const val NETWORK = "NETWORK"
 
+        // 서버가 준 code 가 아니라 앱에서 만든 것. 마이크를 못 열었을 때다.
+        const val MIC_UNAVAILABLE = "MIC_UNAVAILABLE"
+
         fun of(code: String?, serverMessage: String? = null, cause: Throwable? = null) =
             when (code) {
                 // WS 는 ?token= 으로 JWT 를 받는다(헤더가 아니다). 없거나 만료·위조면
@@ -60,6 +63,13 @@ class TalkException(
                 // 핸드셰이크 실패·연결 끊김. 서버가 준 code 가 없을 때다.
                 NETWORK -> TalkException(
                     code, "인터넷 연결을 확인해 주세요.", Recovery.RETRY, cause
+                )
+
+                // 마이크 권한이 없거나 다른 앱이 마이크를 쓰고 있다.
+                // 권한을 주고 다시 누르면 되므로 재시도 가능으로 둔다.
+                MIC_UNAVAILABLE -> TalkException(
+                    code, "마이크를 쓸 수 없어요.\n마이크 권한을 확인해 주세요.",
+                    Recovery.RETRY, cause
                 )
 
                 else -> TalkException(

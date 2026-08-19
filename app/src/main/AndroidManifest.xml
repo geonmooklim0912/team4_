@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- 인형 사진을 AI 서버로 보내고 변환된 캐릭터 이미지를 내려받는 데 필요 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 아이 목소리를 받아 인형이 대답하게 하는 데 필요(WS /doll/talk).
+         푸시투토크 버튼을 누르고 있는 동안에만 녹음한다. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" />
 
     <application
