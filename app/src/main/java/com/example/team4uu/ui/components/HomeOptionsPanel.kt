@@ -509,7 +509,7 @@ private fun FriendThumbnail(friend: Friend, selected: Boolean, onClick: () -> Un
 
 // 미리보기 확인용 임의의 친구 9명(사진 없이 이름만) — 실제 데이터는 카메라 촬영 후 Room DB에서 옴
 private fun sampleFriends(count: Int): List<Friend> =
-    (1..count).map { i -> Friend(id = i.toLong(), name = "친구$i", imagePath = "") }
+    (1..count).map { i -> Friend(id = i.toLong(), ownerUsername = "preview", name = "친구$i", imagePath = "") }
 
 @Preview(showBackground = true)
 @Composable

@@ -9,8 +9,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FriendDao {
-    @Query("SELECT * FROM friends ORDER BY createdAt DESC")
-    fun getAllFriends(): Flow<List<Friend>>
+    @Query("SELECT * FROM friends WHERE ownerUsername = :ownerUsername ORDER BY createdAt DESC")
+    fun getFriendsForOwner(ownerUsername: String): Flow<List<Friend>>
 
     @Query("SELECT * FROM friends WHERE id = :id")
     suspend fun getFriendById(id: Long): Friend?
@@ -23,7 +23,4 @@ interface FriendDao {
 
     @Delete
     suspend fun delete(friend: Friend)
-
-    @Query("DELETE FROM friends")
-    suspend fun deleteAll()
 }
