@@ -1,23 +1,44 @@
 package com.example.team4uu.ui.screens
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.ImageCapture
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -29,7 +50,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +61,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.team4uu.R
 import com.example.team4uu.data.Friend
 import com.example.team4uu.ui.CURRENT_MISSION_STAGE
@@ -64,34 +89,15 @@ private val ROOM_BACKGROUNDS = listOf(
 // 각 배경을 잠금 해제하려면 미션 로드맵에서 도달해야 하는 스테이지. 0번째(기본 배경)는 항상 해제 상태라 0.
 private val ROOM_BACKGROUND_UNLOCK_STAGE = listOf(0, 1, 3, 5, 6)
 
-// 친구가 1마리 이상일 때 보이는 메인 홈. TestResultScreen과 완전히 같은 화면(FriendHomeScreen)을 씀 -
-// 차이는 닫기(X) 버튼 유무뿐(메인 홈은 최상위 화면이라 닫을 필요가 없음).
+// 친구가 1마리 이상일 때 보이는 메인 홈: 위쪽은 현재 선택된 친구가 서 있는 방, 아래쪽은
+// 화살표/스와이프로 접었다 펼 수 있는 새 친구 등록하기 + 친구 목록 + 밥먹기/놀기 옵션 패널.
 @Composable
 fun MainHomeContent(
     friends: List<Friend>,
     onAddFriendClick: () -> Unit,
     onMissionRoadmapClick: () -> Unit,
-    onFeedClick: (Friend) -> Unit
-) {
-    FriendHomeScreen(
-        friends = friends,
-        onAddFriendClick = onAddFriendClick,
-        onMissionRoadmapClick = onMissionRoadmapClick,
-        onFeedClick = onFeedClick,
-        onClose = null
-    )
-}
-
-// 위쪽은 현재 선택된 친구가 서 있는 방, 아래쪽은 화살표/스와이프로 접었다 펼 수 있는
-// 새 친구 등록하기 + 친구 목록 + 밥먹기/놀기 옵션 패널.
-// TestResultScreen.kt에서도 그대로 재사용하므로 internal로 열어둠(같은 ui.screens 패키지 안 다른 파일에서 호출).
-@Composable
-internal fun FriendHomeScreen(
-    friends: List<Friend>,
-    onAddFriendClick: () -> Unit,
-    onMissionRoadmapClick: () -> Unit,
     onFeedClick: (Friend) -> Unit,
-    onClose: (() -> Unit)?
+    onSettingsClick: () -> Unit
 ) {
     var selectedFriendId by remember { mutableStateOf(friends.lastOrNull()?.id) }
     // 목록이 바뀌어도(친구 추가 등) 선택이 항상 유효하도록 유지하고, 새로 등록된 친구를 자동 선택
@@ -117,6 +123,103 @@ internal fun FriendHomeScreen(
         }
     }
 
+    val context = LocalContext.current
+
+    // TODO: 캐릭터가 실제로 말하게 되면(TTS) 이 값으로 소리를 켜고 끔. 지금은 아직 캐릭터가 말을 안 해서
+    // 상태만 토글되는 껍데기 버튼.
+    var isMuted by remember { mutableStateOf(false) }
+
+    // 마이크로 사용자 말 받아쓰기(SpeechRecognizer) 관련 상태
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> hasAudioPermission = granted }
+
+    var isListening by remember { mutableStateOf(false) }
+    val speechRecognizer = remember {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null
+    }
+    DisposableEffect(Unit) {
+        onDispose { speechRecognizer?.destroy() }
+    }
+
+    fun startListening() {
+        val recognizer = speechRecognizer ?: return
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
+        }
+        recognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {
+                isListening = false
+            }
+
+            override fun onError(error: Int) {
+                isListening = false
+            }
+
+            override fun onResults(results: Bundle?) {
+                // TODO: 인식된 문장을 캐릭터 반응/채팅 파이프라인에 연결해야 함.
+                // 아직 그 기능이 없어서 지금은 임시로 Toast로만 확인함.
+                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                if (!text.isNullOrBlank()) {
+                    Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+                }
+                isListening = false
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        recognizer.startListening(intent)
+        isListening = true
+    }
+
+    fun onTalkButtonClick() {
+        if (!hasAudioPermission) {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        if (isListening) {
+            speechRecognizer?.stopListening()
+            isListening = false
+        } else {
+            startListening()
+        }
+    }
+
+    // 홈 배경을 방 이미지 대신 후면 카메라 실시간 화면으로 전환하는 토글
+    var isCameraBackgroundActive by remember { mutableStateOf(false) }
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+        if (granted) isCameraBackgroundActive = true
+    }
+
+    fun onCameraToggleClick() {
+        when {
+            isCameraBackgroundActive -> isCameraBackgroundActive = false
+            hasCameraPermission -> isCameraBackgroundActive = true
+            else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(
             modifier = Modifier
@@ -126,6 +229,11 @@ internal fun FriendHomeScreen(
             val screenWidth = maxWidth
             val screenHeight = maxHeight
 
+            if (isCameraBackgroundActive) {
+                // 오른쪽 카메라 버튼을 누르면 방 배경 대신 후면 카메라 실시간 화면을 보여줌
+                val cameraImageCapture = remember { ImageCapture.Builder().build() }
+                CameraPreview(imageCapture = cameraImageCapture)
+            } else {
             HorizontalPager(
                 state = backgroundPagerState,
                 modifier = Modifier.fillMaxSize()
@@ -185,6 +293,7 @@ internal fun FriendHomeScreen(
                     }
                 }
             }
+            }
 
             val characterPainter = rememberFriendCharacterPainter(selectedFriend)
 
@@ -210,20 +319,40 @@ internal fun FriendHomeScreen(
                     .livingCharacterEffect()
             )
 
-            if (onClose != null) {
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .statusBarsPadding()
-                        .padding(8.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "닫기", tint = Color.Black)
-                }
+            IconButton(
+                onClick = onSettingsClick,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(8.dp)
+            ) {
+                Icon(imageVector = Icons.Default.Settings, contentDescription = "설정", tint = Color.Black)
             }
 
-            // 옵션 패널이 접혀 있을 때: 패널은 화면에서 완전히 빠지고, 방 위에 펼치기 화살표만 떠 있음
+            // 옵션 패널이 접혀 있을 때: 패널은 화면에서 완전히 빠지고, 방 위에 음소거/말하기/카메라 전환
+            // 버튼 줄이 대신 떠 있음. 펼치기 화살표를 누르거나, 아래 점 인디케이터를 위로 쓸어올리면
+            // 패널이 다시 펼쳐지면서 이 버튼 줄은 같이 사라짐.
             if (!selectorExpanded) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 84.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (!isListening) {
+                        VoiceHintBubble()
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    VoiceControlRow(
+                        isMuted = isMuted,
+                        onMuteClick = { isMuted = !isMuted },
+                        isListening = isListening,
+                        onTalkClick = ::onTalkButtonClick,
+                        isCameraBackgroundActive = isCameraBackgroundActive,
+                        onCameraToggleClick = ::onCameraToggleClick
+                    )
+                }
+
                 Surface(
                     onClick = { selectorExpanded = true },
                     modifier = Modifier
@@ -249,6 +378,15 @@ internal fun FriendHomeScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 12.dp)
+                    // 패널이 접혀 있을 때, 이 점들을 위로 쓸어올려도 패널이 다시 펼쳐짐(화살표와 동일 동작)
+                    .pointerInput(selectorExpanded) {
+                        if (!selectorExpanded) {
+                            detectVerticalDragGestures { change, dragAmount ->
+                                change.consume()
+                                if (dragAmount < -10f) selectorExpanded = true
+                            }
+                        }
+                    }
             )
         }
 
@@ -286,6 +424,91 @@ private fun BackgroundPageIndicator(pageCount: Int, currentPage: Int, modifier: 
                     .size(if (page == currentPage) 8.dp else 6.dp)
                     .clip(CircleShape)
                     .background(if (page == currentPage) FriendPink else Color.White.copy(alpha = 0.6f))
+            )
+        }
+    }
+}
+
+// 옵션 패널이 접혀 있을 때 말하기 버튼 위에 뜨는 안내 말풍선
+@Composable
+private fun VoiceHintBubble() {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Text(
+            text = "아래 버튼을 클릭 후 자유롭게 말해보세요!",
+            color = Color.Black,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+    }
+}
+
+// 음소거(왼쪽) / 말하기(가운데, 마이크 입력 시작·중지) / 카메라 배경 전환(오른쪽) 버튼 줄
+@Composable
+private fun VoiceControlRow(
+    isMuted: Boolean,
+    onMuteClick: () -> Unit,
+    isListening: Boolean,
+    onTalkClick: () -> Unit,
+    isCameraBackgroundActive: Boolean,
+    onCameraToggleClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 28.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_mute),
+            contentDescription = if (isMuted) "음소거 해제" else "음소거",
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onMuteClick)
+                .graphicsLayer { alpha = if (isMuted) 1f else 0.55f }
+        )
+
+        // 마이크로 듣고 있는 동안 살짝 두근거리는 느낌을 주는 펄스 애니메이션
+        val infiniteTransition = rememberInfiniteTransition(label = "talkPulse")
+        val listeningScale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "talkPulseScale"
+        )
+        Image(
+            painter = painterResource(id = R.drawable.ic_talk_button),
+            contentDescription = if (isListening) "말하기 중지" else "마이크로 말하기 시작",
+            modifier = Modifier
+                .size(84.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onTalkClick)
+                .graphicsLayer {
+                    val scale = if (isListening) listeningScale else 1f
+                    scaleX = scale
+                    scaleY = scale
+                }
+        )
+
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White)
+                .clickable(onClick = onCameraToggleClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_camera_toggle),
+                contentDescription = if (isCameraBackgroundActive) "배경으로 돌아가기" else "카메라 배경으로 전환",
+                modifier = Modifier.size(22.dp)
             )
         }
     }

@@ -18,7 +18,7 @@ import com.example.team4uu.ui.theme.FriendPink
 
 // 친구가 한 마리도 없을 때(온보딩) 보여지는 화면. "시작하기"를 누르면 카메라로 연결됨.
 @Composable
-fun EmptyFriendContent(onStartClick: () -> Unit, onTestClick: () -> Unit) {
+fun EmptyFriendContent(onStartClick: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -37,11 +37,6 @@ fun EmptyFriendContent(onStartClick: () -> Unit, onTestClick: () -> Unit) {
                 .height(56.dp)
         ) {
             Text(text = "시작하기", color = Color.White, fontWeight = FontWeight.Bold)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        // TODO: 백엔드에서 촬영->2D 변환 로직이 완성되면 이 임시 test 버튼은 제거
-        TextButton(onClick = onTestClick) {
-            Text(text = "test", fontSize = 12.sp, color = Color.DarkGray)
         }
     }
 }

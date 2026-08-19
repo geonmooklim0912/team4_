@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 
 // 토킹톰처럼 "살아있는 느낌"을 주는 캐릭터 공용 효과.
 // 평소엔 숨쉬듯 살짝 커졌다 작아지고, 탭하면 통통 튀는 스쿼시 애니메이션이 재생됨.
-// TestResultScreen과 MainHomeContent(방 무대)가 함께 사용.
+// MainHomeContent(방 무대)가 사용.
 fun Modifier.livingCharacterEffect(): Modifier = composed {
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current

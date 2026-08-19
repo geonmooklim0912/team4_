@@ -22,7 +22,8 @@ fun AuthField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    isPassword: Boolean = false
+    isPassword: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Text
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
@@ -33,11 +34,9 @@ fun AuthField(
             placeholder = { Text(text = placeholder, color = Color(0xFFA89B6B)) },
             singleLine = true,
             visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
-            keyboardOptions = if (isPassword) {
-                KeyboardOptions(keyboardType = KeyboardType.Password)
-            } else {
-                KeyboardOptions.Default
-            },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (isPassword) KeyboardType.Password else keyboardType
+            ),
             shape = RoundedCornerShape(28.dp),
             colors = TextFieldDefaults.colors(
                 unfocusedContainerColor = FriendCardTan,

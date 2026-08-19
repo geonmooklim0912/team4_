@@ -1,5 +1,6 @@
 package com.example.team4uu.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,33 +17,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
 import com.example.team4uu.ui.components.AuthField
 import com.example.team4uu.ui.theme.FriendIconPink
 import com.example.team4uu.ui.theme.FriendPink
-
-// TODO: 백엔드 로그인 API 연동 전까지 쓰는 테스트 계정 (아이디: test / 비밀번호: 1234)
-private const val TEST_USER_ID = "test"
-private const val TEST_USER_PASSWORD = "1234"
-
-// 테스트용 두 번째 계정: 친구가 하나도 없는 상태(EmptyFriendScreen)를 바로 확인하고 싶을 때 사용
-private const val TEST_USER_ID_2 = "test2"
-private const val TEST_USER_PASSWORD_2 = "12345"
+import com.example.team4uu.viewmodel.AuthViewModel
 
 // 신규 사용자 또는 로그아웃 상태에서 앱을 열었을 때 보여지는 로그인 화면.
 // 로그인에 성공하면 기존 메인 화면("시작하기" -> 카메라)으로 넘어감.
-// onLoginClick의 isEmptyTestAccount가 true면 test2 계정으로 로그인한 것 — 친구 목록을 비워서
-// EmptyFriendScreen(온보딩)을 바로 볼 수 있게 함(MainScreen.kt에서 처리).
+// username은 로그인한 계정의 아이디로, 계정별로 친구 목록을 분리해서 보여주는 데 씀(FriendViewModel 참고).
+// 친구가 하나도 없는 계정으로 로그인하면 MainScreen이 자동으로 EmptyFriendScreen(온보딩)을 보여줌.
 @Composable
-fun LoginScreen(onLoginClick: (isEmptyTestAccount: Boolean) -> Unit, onSignUpClick: () -> Unit) {
-    var userId by remember { mutableStateOf("") }
+fun LoginScreen(onLoginClick: (username: String) -> Unit, onSignUpClick: () -> Unit) {
+    val authViewModel: AuthViewModel = viewModel()
+
+    var account by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var loginError by remember { mutableStateOf(false) }
+
+    //Toast 메시지 등을 띄울 때 필요한 Context
+    val context = LocalContext.current
 
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
@@ -78,7 +79,7 @@ fun LoginScreen(onLoginClick: (isEmptyTestAccount: Boolean) -> Unit, onSignUpCli
             )
 
             Spacer(modifier = Modifier.height(40.dp))
-            AuthField(label = "아이디", value = userId, onValueChange = { userId = it }, placeholder = "아이디를 입력해주세요")
+            AuthField(label = "아이디", value = account, onValueChange = { account = it }, placeholder = "아이디를 입력해주세요")
 
             Spacer(modifier = Modifier.height(16.dp))
             AuthField(
@@ -102,18 +103,18 @@ fun LoginScreen(onLoginClick: (isEmptyTestAccount: Boolean) -> Unit, onSignUpCli
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = {
-                    // TODO: 백엔드 로그인 API 연동 전까지는 테스트 계정(test/1234, test2/12345)으로만 통과
-                    when {
-                        userId == TEST_USER_ID && password == TEST_USER_PASSWORD -> {
+                    authViewModel.login(
+                        username = account,
+                        password = password,
+                        onSuccess = {
                             loginError = false
-                            onLoginClick(false)
+                            onLoginClick(account)
+                        },
+                        onError = {
+                            loginError = true
+                            Toast.makeText(context, "네트워크 오류로 로그인에 실패했습니다.", Toast.LENGTH_SHORT).show()
                         }
-                        userId == TEST_USER_ID_2 && password == TEST_USER_PASSWORD_2 -> {
-                            loginError = false
-                            onLoginClick(true)
-                        }
-                        else -> loginError = true
-                    }
+                    )
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = FriendPink),
                 shape = RoundedCornerShape(30.dp),
