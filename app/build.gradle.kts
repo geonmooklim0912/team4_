@@ -18,6 +18,13 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // AI 서버 주소. 코드에 하드코딩하지 않고 여기서 주입한다.
+        //
+        // 가비아 VM(공인 IP 1.201.116.93) + sslip.io 로 발급한 인증서를 쓴다.
+        // ⚠️ 반드시 https 여야 한다 — targetSdk 37 이라 안드로이드가 평문 HTTP 를 차단한다.
+        // ⚠️ 반드시 "/" 로 끝나야 한다 — Retrofit 이 baseUrl 에서 이걸 강제한다.
+        buildConfigField("String", "API_BASE_URL", "\"https://1-201-116-93.sslip.io/\"")
     }
 
     buildTypes {
@@ -33,6 +40,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // 위 buildConfigField 를 코드에서 읽으려면 켜야 한다. AGP 8 부터 기본값이 꺼짐이다.
+        buildConfig = true
     }
 }
 

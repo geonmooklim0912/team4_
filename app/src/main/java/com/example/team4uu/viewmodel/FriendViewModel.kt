@@ -1,9 +1,11 @@
 package com.example.team4uu.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.team4uu.data.AppDatabase
+import com.example.team4uu.data.DollRegistrationRepository
 import com.example.team4uu.data.Friend
 import com.example.team4uu.data.FriendRepository
 import com.example.team4uu.data.remote.DollRepository
@@ -73,5 +75,9 @@ class FriendViewModel(application: Application) : AndroidViewModel(application) 
                 _isCreatingFriend.value = false
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "FriendViewModel"
     }
 }

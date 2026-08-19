@@ -99,11 +99,22 @@ fun MainHomeContent(
     onFeedClick: (Friend) -> Unit,
     onSettingsClick: () -> Unit
 ) {
-    var selectedFriendId by remember { mutableStateOf(friends.lastOrNull()?.id) }
+    // FriendDao가 createdAt DESC로 정렬해서 주므로 **맨 앞이 가장 최근에 등록된 친구**다.
+    // (lastOrNull()은 가장 오래된 친구라서 새로 등록한 인형이 선택되지 않았다)
+    var selectedFriendId by remember { mutableStateOf(friends.firstOrNull()?.id) }
+    // 새 친구가 등록됐는지 판단하려고 직전의 "가장 최근 친구"를 기억해 둔다.
+    var newestFriendId by remember { mutableStateOf(friends.firstOrNull()?.id) }
     // 목록이 바뀌어도(친구 추가 등) 선택이 항상 유효하도록 유지하고, 새로 등록된 친구를 자동 선택
     LaunchedEffect(friends) {
-        if (friends.none { it.id == selectedFriendId }) {
-            selectedFriendId = friends.lastOrNull()?.id
+        val newest = friends.firstOrNull()?.id
+        when {
+            // 맨 앞이 바뀌었다 = 방금 새 친구가 등록됐다. 그 친구를 보여준다.
+            newest != newestFriendId -> {
+                newestFriendId = newest
+                selectedFriendId = newest
+            }
+            // 선택했던 친구가 사라졌으면(삭제 등) 최신 친구로 되돌린다.
+            friends.none { it.id == selectedFriendId } -> selectedFriendId = newest
         }
     }
     val selectedFriend = friends.find { it.id == selectedFriendId }

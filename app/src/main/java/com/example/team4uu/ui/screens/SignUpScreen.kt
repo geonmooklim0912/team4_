@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
+import com.example.team4uu.data.ChildProfile
+import com.example.team4uu.data.ChildProfileRules
 import com.example.team4uu.ui.components.AuthField
 import com.example.team4uu.ui.components.INTEREST_OPTIONS
 import com.example.team4uu.ui.components.InterestChip
@@ -37,7 +39,25 @@ import com.example.team4uu.ui.theme.FriendIconPink
 import com.example.team4uu.ui.theme.FriendPink
 import com.example.team4uu.viewmodel.AuthViewModel
 
+// 입력 오류 한 줄. LoginScreen 의 로그인 실패 문구와 같은 스타일로 맞췄다.
+@Composable
+private fun FieldError(message: String) {
+    Spacer(modifier = Modifier.height(6.dp))
+    Text(
+        text = message,
+        color = FriendPink,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp)
+    )
+}
+
 // 회원가입 화면. 디자인 시안이 따로 없어 로그인 화면과 톤을 맞춰 간단히 구성함.
+//
+// 아이 이름·나이를 여기서 받는다. 계정 주인은 부모지만 **인형이 부르는 건 아이 이름**이라
+// 라벨을 "아이 이름"으로 명시했다. 이 값이 AI 서버로 넘어가 인형이 "지우야" 하고 부른다.
 @Composable
 fun SignUpScreen(onSignUpComplete: () -> Unit, onBackToLogin: () -> Unit) {
     val authViewModel: AuthViewModel = viewModel()
