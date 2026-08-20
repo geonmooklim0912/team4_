@@ -5,6 +5,12 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.ImageCapture
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -31,14 +36,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.team4uu.R
 import com.example.team4uu.data.Friend
 import com.example.team4uu.data.remote.TalkSocket
 import com.example.team4uu.data.remote.TokenManager
@@ -111,6 +119,32 @@ fun FeedingScreen(
         // 여기서 안 끊으면 Live 세션이 계속 실행되고,서버 동시 세션 한도(2)도 넘는다.
         DisposableEffect(Unit) { onDispose { talkViewModel.stop() } }
 
+        // 홈 화면(HomeScreen.onTalkButtonClick)과 똑같은 버튼 하나로 시작 -> 듣기 -> 종료를
+        // 전부 처리한다. 상태별로 버튼이 바뀌지 않는다.
+        fun onTalkButtonClick() {
+                if (!hasMicPermission) {
+                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        return
+                }
+                when (talkState) {
+                        is TalkViewModel.TalkState.Idle ->
+                                talkViewModel.start(
+                                        token = token.orEmpty(),
+                                        dollName = friend?.name,
+                                        // 밥 먹기 화면. 음식 이야기를 꺼내도 되는 상황이다.
+                                        mode = TalkSocket.MODE_MEAL,
+                                        // 밥 먹기를 시작할 때 FeedMissionDialog 에서
+                                        // 고른 오늘의 목표. 인형이 이걸 놀이처럼
+                                        // 유도한다(서버 ai/dialog_test.goal_block).
+                                        goals = goals
+                                )
+                        is TalkViewModel.TalkState.Listening -> talkViewModel.stopSpeaking()
+                        is TalkViewModel.TalkState.Ready -> talkViewModel.startSpeaking()
+                        is TalkViewModel.TalkState.Failed -> talkViewModel.dismissError()
+                        else -> Unit
+                }
+        }
+
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
                 if (hasCameraPermission) {
                         // CameraPreview는 CameraScreen.kt에서도 쓰는 CameraX 후면 카메라 미리보기.
@@ -127,7 +161,7 @@ fun FeedingScreen(
                                         contentDescription = friend.name,
                                         contentScale = ContentScale.Fit,
                                         modifier =
-                                                Modifier.fillMaxWidth(0.39f)
+                                                Modifier.fillMaxWidth(0.60f)
                                                         .align(Alignment.BottomCenter)
                                                         .padding(bottom = 70.dp)
                                                         .livingCharacterEffect()
@@ -175,31 +209,8 @@ fun FeedingScreen(
                 )
 
                 TalkControl(
-                        state = talkState,
-                        hasToken = token != null,
-                        onStart = {
-                                // 마이크 권한을 먼저 받는다. 권한 없이 연결하면 유료 세션만 열어두고
-                                // 아무 말도 못 보내게 된다.
-                                if (hasMicPermission) {
-                                        talkViewModel.start(
-                                                token = token.orEmpty(),
-                                                dollName = friend?.name,
-                                                // 밥 먹기 화면. 음식 이야기를 꺼내도 되는 상황이다.
-                                                mode = TalkSocket.MODE_MEAL,
-                                                // 밥 먹기를 시작할 때 FeedMissionDialog 에서
-                                                // 고른 오늘의 목표. 인형이 이걸 놀이처럼
-                                                // 유도한다(서버 ai/dialog_test.goal_block).
-                                                goals = goals
-                                        )
-                                } else {
-                                        micPermissionLauncher.launch(
-                                                Manifest.permission.RECORD_AUDIO
-                                        )
-                                }
-                        },
-                        onSpeakStart = talkViewModel::startSpeaking,
-                        onSpeakEnd = talkViewModel::stopSpeaking,
-                        onDismissError = talkViewModel::dismissError,
+                        isListening = talkState is TalkViewModel.TalkState.Listening,
+                        onTalkClick = ::onTalkButtonClick,
                         modifier =
                                 Modifier.align(Alignment.BottomEnd)
                                         .navigationBarsPadding()
@@ -208,14 +219,14 @@ fun FeedingScreen(
 
                 Button(
                         onClick = { showFinishDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.9f)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91B71)),
                         shape = RoundedCornerShape(24.dp),
                         modifier =
                                 Modifier.align(Alignment.BottomStart)
                                         .navigationBarsPadding()
                                         .padding(20.dp)
                 ) {
-                        Text(text = "끝내기", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(text = "식사 마치기", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
         }
 
@@ -264,83 +275,37 @@ private fun TalkCaption(
         )
 }
 
-// 대화 시작 버튼 -> 말하기 버튼.
-// 한 번 누르면 말할 수 있고, 말이 끝나면 알아서 닫힌다(SpeechEndDetector).
-// 말하는 중에 다시 누르면 즉시 끝낸다.
+// 홈 화면(HomeScreen.VoiceControlRow)과 똑같은 말하기 버튼 — 아이콘 하나로
+// 시작 -> 듣기 -> 종료를 전부 처리한다. 상태별로 버튼 모양이 바뀌지 않는다.
 @Composable
 private fun TalkControl(
-        state: TalkViewModel.TalkState,
-        hasToken: Boolean,
-        onStart: () -> Unit,
-        onSpeakStart: () -> Unit,
-        onSpeakEnd: () -> Unit,
-        onDismissError: () -> Unit,
+        isListening: Boolean,
+        onTalkClick: () -> Unit,
         modifier: Modifier = Modifier
 ) {
-        when (state) {
-                is TalkViewModel.TalkState.Idle ->
-                        Button(
-                                onClick = onStart,
-                                enabled = hasToken,
-                                shape = RoundedCornerShape(24.dp),
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor = Color.White.copy(alpha = 0.9f)
-                                        ),
-                                modifier = modifier
-                        ) {
-                                Text(
-                                        text = if (hasToken) "친구랑 이야기하기" else "로그인이 필요해요",
-                                        color = Color.Black,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                )
-                        }
-                is TalkViewModel.TalkState.Failed ->
-                        Button(
-                                onClick = onDismissError,
-                                shape = RoundedCornerShape(24.dp),
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor = Color.White.copy(alpha = 0.9f)
-                                        ),
-                                modifier = modifier
-                        ) {
-                                Text(
-                                        text = "확인",
-                                        color = Color.Black,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                )
-                        }
-                is TalkViewModel.TalkState.Connecting -> Unit
-
-                // Ready / Listening / Speaking — 마이크 버튼을 띄운다.
-                else -> {
-                        val listening = state is TalkViewModel.TalkState.Listening
-                        Box(
-                                modifier =
-                                        modifier.size(72.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                        if (listening) Color.Red.copy(alpha = 0.85f)
-                                                        else Color.White.copy(alpha = 0.9f)
-                                                )
-                                                .clickable {
-                                                        // 말하는 중이면 즉시 끝내고, 아니면 시작한다.
-                                                        // 끝은 보통 SpeechEndDetector 가 알아서 잡는다.
-                                                        if (listening) onSpeakEnd()
-                                                        else onSpeakStart()
-                                                },
-                                contentAlignment = Alignment.Center
-                        ) {
-                                Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription =
-                                                if (listening) "말하는 중 (눌러서 끝내기)" else "눌러서 말하기",
-                                        tint = if (listening) Color.White else Color.Black
-                                )
-                        }
-                }
-        }
+        // 듣고 있는 동안 살짝 두근거리는 느낌을 주는 펄스 애니메이션
+        val infiniteTransition = rememberInfiniteTransition(label = "talkPulse")
+        val listeningScale by infiniteTransition.animateFloat(
+                initialValue = 1f,
+                targetValue = 1.1f,
+                animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                ),
+                label = "talkPulseScale"
+        )
+        Image(
+                painter = painterResource(id = R.drawable.talk_icon),
+                contentDescription = if (isListening) "말하기 중지" else "마이크로 말하기 시작",
+                modifier =
+                        modifier
+                                .size(84.dp)
+                                .clip(CircleShape)
+                                .clickable(onClick = onTalkClick)
+                                .graphicsLayer {
+                                        val scale = if (isListening) listeningScale else 1f
+                                        scaleX = scale
+                                        scaleY = scale
+                                }
+        )
 }
