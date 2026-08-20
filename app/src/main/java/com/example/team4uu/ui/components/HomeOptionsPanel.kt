@@ -1,6 +1,5 @@
 package com.example.team4uu.ui.components
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EmojiFlags
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material.icons.filled.Restaurant
@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -50,7 +49,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import com.example.team4uu.R
 import com.example.team4uu.data.Friend
-import com.example.team4uu.ui.CURRENT_MISSION_STAGE
 import com.example.team4uu.ui.theme.FriendCardTan
 import com.example.team4uu.ui.theme.FriendIconPink
 import com.example.team4uu.ui.theme.FriendPink
@@ -65,11 +63,14 @@ import kotlinx.coroutines.delay
 fun HomeOptionsPanel(
     friends: List<Friend>,
     selectedFriendId: Long?,
+    currentMissionStage: Int,
     onCollapse: () -> Unit,
     onSelectFriend: (Friend) -> Unit,
     onAddFriendClick: () -> Unit,
     onMissionRoadmapClick: () -> Unit,
-    onFeedClick: () -> Unit
+    onFeedClick: () -> Unit,
+    onRenameFriend: (Friend, String) -> Unit,
+    onDeleteFriend: (Friend) -> Unit
 ) {
     // 책 아이콘을 누르면 새 친구 등록 아이콘 줄 대신 등록된 친구 전체 목록이 오른쪽에서 스와이프되어 나타남
     var showFriendsGrid by remember { mutableStateOf(false) }
@@ -121,8 +122,11 @@ fun HomeOptionsPanel(
                     FriendsGrid(
                         friends = friends,
                         selectedFriendId = selectedFriendId,
+                        currentMissionStage = currentMissionStage,
                         onSelectFriend = onSelectFriend,
-                        onBack = { showFriendsGrid = false }
+                        onBack = { showFriendsGrid = false },
+                        onRenameFriend = onRenameFriend,
+                        onDeleteFriend = onDeleteFriend
                     )
                 } else {
                     Column {
@@ -312,8 +316,11 @@ private fun requiredStageForSlot(slotIndex: Int): Int = slotIndex - FREE_FRIEND_
 private fun FriendsGrid(
     friends: List<Friend>,
     selectedFriendId: Long?,
+    currentMissionStage: Int,
     onSelectFriend: (Friend) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRenameFriend: (Friend, String) -> Unit,
+    onDeleteFriend: (Friend) -> Unit
 ) {
     // 잠긴 칸을 탭하면 그 칸 번호를 기억해서 말풍선을 띄우고, 일정 시간 후 자동으로 다시 null로 돌려 닫음
     var activeLockedSlot by remember { mutableStateOf<Int?>(null) }
@@ -323,6 +330,9 @@ private fun FriendsGrid(
             activeLockedSlot = null
         }
     }
+
+    // 오른쪽 구석 "친구 관리" 버튼을 누르면 뜨는, 삭제/이름 바꾸기가 가능한 목록 팝업
+    var showManageDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -338,7 +348,28 @@ private fun FriendsGrid(
                     tint = Color.DarkGray
                 )
             }
-            Text(text = "등록한 친구 (${friends.size}/$TOTAL_FRIEND_SLOTS)", fontSize = 13.sp, color = Color.DarkGray)
+            Text(
+                text = "등록한 친구 (${friends.size}/$TOTAL_FRIEND_SLOTS)",
+                fontSize = 13.sp,
+                color = Color.DarkGray,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = { showManageDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.ManageAccounts,
+                    contentDescription = "친구 관리",
+                    tint = Color.DarkGray
+                )
+            }
+        }
+
+        if (showManageDialog) {
+            FriendManageDialog(
+                friends = friends,
+                onRename = onRenameFriend,
+                onDelete = onDeleteFriend,
+                onDismiss = { showManageDialog = false }
+            )
         }
 
         Column(
@@ -360,7 +391,7 @@ private fun FriendsGrid(
                             selectedFriendId = selectedFriendId,
                             requiredStage = requiredStageForSlot(slotIndex),
                             isLocked = slotIndex >= FREE_FRIEND_SLOTS &&
-                                requiredStageForSlot(slotIndex) > CURRENT_MISSION_STAGE,
+                                requiredStageForSlot(slotIndex) > currentMissionStage,
                             showLockedMessage = activeLockedSlot == slotIndex,
                             onSelectFriend = onSelectFriend,
                             onLockedClick = { activeLockedSlot = slotIndex }
@@ -473,8 +504,8 @@ private fun LockedFriendMessageBubble(requiredStage: Int, modifier: Modifier = M
 
 @Composable
 private fun FriendThumbnail(friend: Friend, selected: Boolean, onClick: () -> Unit) {
-    // TODO: 지금은 촬영 원본 사진(imagePath)을 썸네일로 보여줌. 배경 제거 캐릭터 이미지가 생기면 그걸로 교체.
-    val bitmap = remember(friend.imagePath) { BitmapFactory.decodeFile(friend.imagePath)?.asImageBitmap() }
+    // 배경 제거된 2D 캐릭터 이미지를 썸네일로 보여줌(칸은 RoundedCornerShape라서 원형으로 자르지 않고 그대로 표시).
+    val characterPainter = rememberFriendCharacterPainter(friend)
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -485,16 +516,14 @@ private fun FriendThumbnail(friend: Friend, selected: Boolean, onClick: () -> Un
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap,
-                    contentDescription = friend.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                )
-            }
+            Image(
+                painter = characterPainter,
+                contentDescription = friend.name,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(6.dp)
+            )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
@@ -517,7 +546,10 @@ private fun FriendsGridPreview() {
     FriendsGrid(
         friends = sampleFriends(TOTAL_FRIEND_SLOTS),
         selectedFriendId = 1L,
+        currentMissionStage = 0,
         onSelectFriend = {},
-        onBack = {}
+        onBack = {},
+        onRenameFriend = { _, _ -> },
+        onDeleteFriend = {}
     )
 }

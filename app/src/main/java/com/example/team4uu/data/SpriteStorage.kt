@@ -66,6 +66,11 @@ class SpriteStorage(private val context: Context) {
         temp
     }
 
+    // 친구를 삭제할 때 그 친구의 스프라이트 폴더를 통째로 지운다.
+    suspend fun deleteSprites(friendId: Long) = withContext(Dispatchers.IO) {
+        spriteDir(friendId).deleteRecursively()
+    }
+
     // 등록이 끝나 id 가 정해지면 임시 폴더를 제자리로 옮긴다.
     suspend fun commit(temp: File, friendId: Long): File = withContext(Dispatchers.IO) {
         val dest = spriteDir(friendId)
@@ -81,7 +86,11 @@ class SpriteStorage(private val context: Context) {
     }
 
     private fun download(url: String, dest: File) {
-        val request = Request.Builder().url(url).build()
+        // 서버가 스프라이트 URL을 http://로 내려주는데(응답 자체는 https), 같은 호스트가
+        // https도 그대로 서빙해서 여기서 스킴을 올려 씀 — cleartext 허용을 앱 전체에 켜두지
+        // 않아도 되게(targetSdk 37은 기본적으로 cleartext를 막음).
+        val secureUrl = url.replaceFirst("http://", "https://")
+        val request = Request.Builder().url(secureUrl).build()
         NetworkModule.client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("스프라이트 내려받기 실패 ${response.code}: $url")

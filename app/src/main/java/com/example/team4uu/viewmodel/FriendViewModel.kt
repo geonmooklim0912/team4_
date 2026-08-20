@@ -1,14 +1,16 @@
 package com.example.team4uu.viewmodel
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.team4uu.data.AppDatabase
+import com.example.team4uu.data.ConvertedDoll
 import com.example.team4uu.data.DollRegistrationRepository
 import com.example.team4uu.data.Friend
 import com.example.team4uu.data.FriendRepository
-import com.example.team4uu.data.remote.DollRepository
+import com.example.team4uu.data.SpriteStorage
+import com.example.team4uu.data.remote.StylizeException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,9 +20,24 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 
+// 촬영 -> AI 서버 변환 -> (이름 입력) -> 스프라이트 저장까지의 진행 상태. MainScreen이 이 값에 따라
+// DollLoadingDialog/DollNameDialog/DollErrorDialog를 띄움.
+sealed interface DollRegistrationState {
+    data object Idle : DollRegistrationState
+    data object Loading : DollRegistrationState
+    // 변환은 끝났고 스프라이트도 임시 폴더에 받아둔 상태. 이름을 입력받아 confirmFriendName으로 넘기면 저장됨.
+    data class NamePending(val converted: ConvertedDoll) : DollRegistrationState
+    // photoPath를 들고 있어야 "다시 시도"를 같은 사진으로 재요청할 수 있음.
+    data class Error(val exception: StylizeException, val photoPath: String) : DollRegistrationState
+}
+
 class FriendViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = FriendRepository(AppDatabase.getInstance(application).friendDao())
-    private val dollRepository = DollRepository()
+    private val spriteStorage = SpriteStorage(application)
+    private val dollRegistrationRepository = DollRegistrationRepository(
+        friendRepository = repository,
+        spriteStorage = spriteStorage
+    )
 
     // 현재 로그인한 계정의 아이디. 계정마다 친구 목록을 분리해서 보여주기 위한 기준 키로,
     // 로그인할 때 setCurrentUser로 설정됨.
@@ -50,34 +67,76 @@ class FriendViewModel(application: Application) : AndroidViewModel(application) 
         ownerUsername.value = null
     }
 
-    // 카메라 촬영 후 서버로 사진을 보내 인형 스타일로 변환하는 동안 true. 로딩 UI에 씀.
-    private val _isCreatingFriend = MutableStateFlow(false)
-    val isCreatingFriend: StateFlow<Boolean> = _isCreatingFriend
+    private val _registrationState = MutableStateFlow<DollRegistrationState>(DollRegistrationState.Idle)
+    val registrationState: StateFlow<DollRegistrationState> = _registrationState
 
-    // 촬영한 사진(imagePath)을 POST /doll/stylize로 업로드해서 인형 캐릭터로 변환한 뒤,
-    // 그 결과와 함께 새 친구로 저장함.
-    fun createFriendFromPhoto(name: String, imagePath: String, onError: (String) -> Unit) {
-        val owner = ownerUsername.value ?: return
+    // 촬영한 사진(photoPath)을 서버로 보내 인형 캐릭터로 변환함. 성공하면 이름을 물어보기 위해
+    // NamePending 상태로 넘어감(아직 친구 목록에는 저장되지 않음). 진행 상황은 registrationState로 노출됨.
+    fun registerFriendFromPhoto(photoPath: String) {
         viewModelScope.launch {
-            _isCreatingFriend.value = true
+            _registrationState.value = DollRegistrationState.Loading
             try {
-                val result = dollRepository.stylizeDoll(File(imagePath))
-                // sprites의 첫 번째 항목이 홈 화면에 띄울 대표 이미지
-                repository.addFriend(
-                    ownerUsername = owner,
-                    name = name,
-                    imagePath = imagePath,
-                    characterAssetPath = result.sprites.firstOrNull()
-                )
+                val converted = dollRegistrationRepository.convert(photoPath)
+                _registrationState.value = DollRegistrationState.NamePending(converted)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: StylizeException) {
+                _registrationState.value = DollRegistrationState.Error(e, photoPath)
             } catch (e: Exception) {
-                onError(e.message ?: "인형 만들기에 실패했습니다.")
-            } finally {
-                _isCreatingFriend.value = false
+                _registrationState.value = DollRegistrationState.Error(StylizeException.of(null, cause = e), photoPath)
             }
         }
     }
 
-    private companion object {
-        const val TAG = "FriendViewModel"
+    // 이름 입력 다이얼로그에서 확인을 누르면 호출됨. 그 이름으로 실제 친구 목록에 저장함.
+    fun confirmFriendName(name: String) {
+        val state = _registrationState.value
+        if (state !is DollRegistrationState.NamePending) return
+        val owner = ownerUsername.value ?: return
+        viewModelScope.launch {
+            _registrationState.value = DollRegistrationState.Loading
+            try {
+                dollRegistrationRepository.save(ownerUsername = owner, name = name, converted = state.converted)
+                _registrationState.value = DollRegistrationState.Idle
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: StylizeException) {
+                _registrationState.value = DollRegistrationState.Error(e, state.converted.photoPath)
+            } catch (e: Exception) {
+                _registrationState.value = DollRegistrationState.Error(StylizeException.of(null, cause = e), state.converted.photoPath)
+            }
+        }
+    }
+
+    // 이름 입력 다이얼로그를 취소하면 호출됨. 받아둔 스프라이트 임시 파일을 정리함.
+    fun cancelNamePending() {
+        val state = _registrationState.value
+        if (state is DollRegistrationState.NamePending) {
+            dollRegistrationRepository.discard(state.converted)
+        }
+        _registrationState.value = DollRegistrationState.Idle
+    }
+
+    fun dismissRegistrationError() {
+        _registrationState.value = DollRegistrationState.Idle
+    }
+
+    // 친구 관리 팝업의 "이름 바꾸기"에서 호출됨.
+    fun renameFriend(friend: Friend, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty() || trimmed == friend.name) return
+        viewModelScope.launch {
+            repository.updateFriend(friend.copy(name = trimmed))
+        }
+    }
+
+    // 친구 관리 팝업의 "삭제"에서 확인을 누르면 호출됨. Room 에서 지우고, 그 친구가 쓰던
+    // 스프라이트/원본 사진 파일도 함께 정리한다.
+    fun deleteFriend(friend: Friend) {
+        viewModelScope.launch {
+            repository.deleteFriend(friend)
+            spriteStorage.deleteSprites(friend.id)
+            File(friend.imagePath).delete()
+        }
     }
 }

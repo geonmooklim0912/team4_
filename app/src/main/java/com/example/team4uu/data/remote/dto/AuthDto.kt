@@ -8,7 +8,9 @@ data class LoginRequest(
     val password: String
 )
 data class LoginResponse(
-    val token: String? = null,
+    // login()이 실패하면 HttpException으로 떨어지고 이 객체 자체가 안 만들어지므로,
+    // 여기까지 왔다는 건 서버가 토큰을 준 것 — non-null로 둬서 TokenStore.save()에 바로 넘길 수 있음.
+    val token: String,
     @Json(name = "user_id") val userId: Long? = null
 )
 

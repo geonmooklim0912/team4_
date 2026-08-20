@@ -12,11 +12,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,14 +21,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
@@ -39,11 +33,11 @@ import com.example.team4uu.data.AuthException
 import com.example.team4uu.data.AuthRepository
 import com.example.team4uu.data.ChildProfileStore
 import com.example.team4uu.data.Friend
-import com.example.team4uu.data.remote.TokenManager
 import com.example.team4uu.data.TokenStore
 import com.example.team4uu.ui.components.DEFAULT_MISSION_TAGS
 import com.example.team4uu.ui.components.DollErrorDialog
 import com.example.team4uu.ui.components.DollLoadingDialog
+import com.example.team4uu.ui.components.DollNameDialog
 import com.example.team4uu.ui.components.FeedMissionDialog
 import com.example.team4uu.ui.components.INTEREST_OPTIONS
 import com.example.team4uu.ui.components.InterestEditDialog
@@ -57,14 +51,19 @@ import com.example.team4uu.ui.screens.MainHomeContent
 import com.example.team4uu.ui.screens.MissionRoadmapScreen
 import com.example.team4uu.ui.screens.SignUpScreen
 import com.example.team4uu.viewmodel.AuthViewModel
+import com.example.team4uu.viewmodel.DollRegistrationState
 import com.example.team4uu.viewmodel.FriendViewModel
+import com.example.team4uu.viewmodel.MissionViewModel
 import kotlinx.coroutines.launch
 
 private enum class AuthStep { LOGIN, SIGNUP }
 
 // 앱 전체 라우팅: 로그인 여부 -> 카메라/테스트 화면 여부 -> 친구 유무에 따라 어떤 화면을 보여줄지 결정.
 @Composable //화면을 그리는 함수라는 의미의 어노테이션
-fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
+fun MainScreen(
+    friendViewModel: FriendViewModel = viewModel(),
+    missionViewModel: MissionViewModel = viewModel()
+) {
     var showCamera by remember { mutableStateOf(false) } //ShowCamera 값이 바뀌면 화면을 다시만드는 상태 객체
     var showMissionRoadmap by remember { mutableStateOf(false) }
     // "밥 먹기"를 누르면 이 친구를 들고 카메라 오버레이(FeedingScreen)로 이동. null이 아니면 그 화면을 보여줌.
@@ -73,7 +72,7 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     var missionSelectionFriend by remember { mutableStateOf<Friend?>(null) }
     // TODO: 실제로는 자주 쓰는 태그를 백엔드/DB에 저장해야 함. 아직 그게 없어서 세션 동안만 유지되는 상태로 관리.
     var savedMissionTags by remember { mutableStateOf(DEFAULT_MISSION_TAGS) }
-    var isLoggedIn by remember { mutableStateOf(false) } // TODO: 백엔드 인증 연동 후 실제 로그인 상태(토큰 존재 여부 등)로 교체
+    var isLoggedIn by remember { mutableStateOf(false) }
     var authStep by remember { mutableStateOf(AuthStep.LOGIN) }
     val context = LocalContext.current //현재 앱의 컨텍스트를 갖고 옴(권환 확인 시스템 기능을 쓸 때 필요)
     // 회원가입에서 받은 아이 이름·나이를 담아둔다. 대화(WS /doll/talk)를 열 때 쿼리로 붙이면
@@ -87,7 +86,6 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     var isLoggingIn by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
     val friends by friendViewModel.friends.collectAsState() // Room DB에 저장된 친구 목록(실시간 반영)
-    val isCreatingFriend by friendViewModel.isCreatingFriend.collectAsState() // 사진을 서버로 보내 인형으로 변환하는 중인지
     val authViewModel: AuthViewModel = viewModel()
 
     // 홈 화면 좌측 상단 톱니바퀴 -> 설정 메뉴 -> 관심사 변경 팝업으로 이어지는 흐름의 상태
@@ -96,6 +94,12 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     // 촬영 -> AI 서버 변환(약 28초) -> 스프라이트 저장까지의 진행 상태.
     // 이 값에 따라 아래쪽에서 로딩/에러 모달을 띄운다.
     val registrationState by friendViewModel.registrationState.collectAsState()
+
+    // 미션 로드맵 단계별 별 진행도. 배경/친구 칸 잠금 해제 판단, 미션 로드맵 화면에 모두 이 값을 씀.
+    val missionLevels by missionViewModel.levels.collectAsState()
+    val currentMissionStage by missionViewModel.currentStage.collectAsState()
+    // 밥 먹기 시작 시 고른 오늘의 목표(최대 3개). "끝내기"를 누르면 다시 보여줌.
+    val currentGoals by missionViewModel.currentGoals.collectAsState()
 
     //카메라 권한 요청을 띄우는 팝업
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -138,13 +142,6 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
         ) { step ->
             when (step) {
                 AuthStep.LOGIN -> LoginScreen(
-                    onLoginClick = { username ->
-                        // 계정별로 친구 목록을 분리해서 보여주기 위해, 로그인한 아이디를 현재 사용자로 설정.
-                        // 이 계정에 친구가 하나도 없으면(처음 로그인) friends가 빈 목록이라
-                        // 아래 Scaffold 분기에서 자동으로 EmptyFriendContent(온보딩)가 뜸.
-                        friendViewModel.setCurrentUser(username)
-                        isLoggedIn = true
-                    },
                     onServerLogin = { id, password ->
                         isLoggingIn = true
                         loginError = null
@@ -153,6 +150,10 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                                 // 성공하면 TokenStore 에 JWT 가 들어가고, 그때부터
                                 // NetworkModule 인터셉터가 모든 요청에 헤더를 붙인다.
                                 authRepository.login(id, password)
+                                // 계정별로 친구 목록을 분리해서 보여주기 위해, 로그인한 아이디를 현재 사용자로 설정.
+                                // 이 계정에 친구가 하나도 없으면(처음 로그인) friends가 빈 목록이라
+                                // 아래 Scaffold 분기에서 자동으로 EmptyFriendContent(온보딩)가 뜸.
+                                friendViewModel.setCurrentUser(id)
                                 isLoggedIn = true
                             } catch (e: AuthException) {
                                 loginError = e.userMessage
@@ -178,20 +179,23 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
             onClose = { showCamera = false }, //카메라 화면을 띄우지만 닫기를 누르면 showCamera를 false
             onPhotoCaptured = { imagePath ->
                 showCamera = false
-                // TODO(F4): 등록 완료 후 이름을 입력받는 다이얼로그가 아직 없어서, 임시로 고정 이름("곰돌이")을
-                // 사용함. 이름 입력 UI가 생기면 사용자가 입력한 값으로 교체.
-                // 사진을 서버(POST /doll/stylize)로 보내 인형으로 변환한 뒤 친구로 저장함.
-                friendViewModel.createFriendFromPhoto(
-                    name = "곰돌이",
-                    imagePath = imagePath,
-                    onError = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
-                )
+                // 사진을 서버(POST /doll/stylize)로 보내 인형으로 변환함. 성공하면 이름 입력 다이얼로그가
+                // 뜨고(registrationState가 NamePending으로 바뀜), 거기서 입력한 이름으로 친구가 저장됨.
+                friendViewModel.registerFriendFromPhoto(photoPath = imagePath)
             }
         )
     } else if (showMissionRoadmap) {
-        MissionRoadmapScreen(onClose = { showMissionRoadmap = false })
+        MissionRoadmapScreen(levels = missionLevels, onClose = { showMissionRoadmap = false })
     } else if (feedingFriend != null) {
-        FeedingScreen(friend = feedingFriend, onClose = { feedingFriend = null })
+        FeedingScreen(
+            friend = feedingFriend,
+            goals = currentGoals,
+            onClose = { feedingFriend = null },
+            onFinishSession = { achievedGoals ->
+                missionViewModel.completeFeedingSession(achievedGoals)
+                feedingFriend = null
+            }
+        )
     } else { //카메라를 보여줄 상황이 아니면 메인 화면을 띄움
         Scaffold(//화면의 기본 뼈대를 잡아주는 compose의 부품임
             modifier = Modifier.fillMaxSize(),
@@ -219,10 +223,13 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                     } else {
                         MainHomeContent(
                             friends = friends,
+                            currentMissionStage = currentMissionStage,
                             onAddFriendClick = ::requestCameraOrOpen,
                             onMissionRoadmapClick = { showMissionRoadmap = true },
                             onFeedClick = { friend -> missionSelectionFriend = friend },
-                            onSettingsClick = { showSettingsMenu = true }
+                            onSettingsClick = { showSettingsMenu = true },
+                            onRenameFriend = { friend, newName -> friendViewModel.renameFriend(friend, newName) },
+                            onDeleteFriend = { friend -> friendViewModel.deleteFriend(friend) }
                         )
                     }
                 }
@@ -241,7 +248,8 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                 if (tag !in savedMissionTags) savedMissionTags = savedMissionTags + tag
             },
             onDismiss = { missionSelectionFriend = null },
-            onConfirm = {
+            onConfirm = { goals ->
+                missionViewModel.selectGoals(goals)
                 feedingFriend = missionFriend
                 missionSelectionFriend = null
             }
@@ -259,7 +267,7 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
             },
             onLogoutClick = {
                 showSettingsMenu = false
-                TokenManager.clear()
+                authRepository.logout()
                 friendViewModel.logout()
                 isLoggedIn = false
             }
@@ -268,9 +276,9 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
 
     if (showInterestEditDialog) {
         InterestEditDialog(
-            // TokenManager.keywords는 서버로 보낸 순수 텍스트("공룡")라서, INTEREST_OPTIONS의
+            // authViewModel.keywords는 서버로 보낸 순수 텍스트("공룡")라서, INTEREST_OPTIONS의
             // 이모지 붙은 표기("🦕 공룡")로 다시 매칭해서 미리 체크된 상태로 보여줌
-            initiallySelected = INTEREST_OPTIONS.filter { interestKeyword(it) in TokenManager.keywords },
+            initiallySelected = INTEREST_OPTIONS.filter { interestKeyword(it) in authViewModel.keywords },
             onDismiss = { showInterestEditDialog = false },
             onConfirm = { selected ->
                 authViewModel.updateKeyword(
@@ -287,20 +295,24 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
         )
     }
 
-    // 촬영한 사진을 서버로 보내 인형으로 변환하는 동안 뜨는 전체 화면 로딩. 몇 초 걸릴 수 있어서
-    // 그동안 다른 화면(온보딩/홈)이 어색하게 비어 보이지 않도록 위에 덮어씀.
-    if (isCreatingFriend) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.6f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = Color.White)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "인형을 만들고 있어요...", color = Color.White, fontSize = 14.sp)
-            }
-        }
+    // 촬영한 사진을 서버로 보내 인형으로 변환하는 동안(약 28초)/실패했을 때 뜨는 모달.
+    when (val state = registrationState) {
+        DollRegistrationState.Loading -> DollLoadingDialog()
+        is DollRegistrationState.NamePending -> DollNameDialog(
+            onConfirm = { name -> friendViewModel.confirmFriendName(name) },
+            onDismiss = { friendViewModel.cancelNamePending() }
+        )
+        is DollRegistrationState.Error -> DollErrorDialog(
+            error = state.exception,
+            onRetake = {
+                friendViewModel.dismissRegistrationError()
+                showCamera = true
+            },
+            onRetry = {
+                friendViewModel.registerFriendFromPhoto(photoPath = state.photoPath)
+            },
+            onDismiss = { friendViewModel.dismissRegistrationError() }
+        )
+        DollRegistrationState.Idle -> Unit
     }
 }

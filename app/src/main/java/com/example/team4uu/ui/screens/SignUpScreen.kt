@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
 import com.example.team4uu.data.ChildProfile
 import com.example.team4uu.data.ChildProfileRules
+import com.example.team4uu.data.ChildProfileStore
 import com.example.team4uu.ui.components.AuthField
 import com.example.team4uu.ui.components.INTEREST_OPTIONS
 import com.example.team4uu.ui.components.InterestChip
@@ -73,27 +74,40 @@ fun SignUpScreen(onSignUpComplete: () -> Unit, onBackToLogin: () -> Unit) {
     var selectedInterests by remember { mutableStateOf(setOf<String>()) }
 
     var signUpError by remember { mutableStateOf<String?>(null) }
+    var childNameError by remember { mutableStateOf<String?>(null) }
+    var childAgeError by remember { mutableStateOf<String?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
 
+    // 이 프로필이 있어야 인형이 "지우야" 하고 아이 이름을 불러줄 수 있음(대화 화면의 TalkViewModel이 읽음).
+    val childProfileStore = remember(context) { ChildProfileStore(context) }
+
     fun submit() {
+        val nameError = ChildProfileRules.nameError(childName)
+        val ageError = ChildProfileRules.ageError(childAge)
+        childNameError = nameError
+        childAgeError = ageError
+
         signUpError = when {
             userId.isBlank() || password.isBlank() || email.isBlank() -> "아이디/비밀번호/이메일을 입력해주세요."
             password != passwordCheck -> "비밀번호가 일치하지 않습니다."
             else -> null
         }
-        if (signUpError != null) return
+        if (signUpError != null || nameError != null || ageError != null) return
 
         isSubmitting = true
+        val trimmedName = childName.trim()
+        val age = childAge.trim().toIntOrNull() ?: 0
         authViewModel.signUp(
             username = userId,
             password = password,
             email = email,
-            name = childName,
-            age = childAge.toIntOrNull() ?: 0,
+            name = trimmedName,
+            age = age,
             // 관심사 칩은 "🦕 공룡"처럼 이모지가 붙어있어서, 서버로는 이모지를 뺀 텍스트만 콤마로 이어서 보냄
             keyword = selectedInterests.joinToString(",") { interestKeyword(it) },
             onSuccess = {
                 isSubmitting = false
+                childProfileStore.save(ChildProfile(name = trimmedName, age = age))
                 Toast.makeText(context, "요청 성공", Toast.LENGTH_SHORT).show()
                 onSignUpComplete()
             },
@@ -174,6 +188,7 @@ fun SignUpScreen(onSignUpComplete: () -> Unit, onBackToLogin: () -> Unit) {
                 onValueChange = { childName = it },
                 placeholder = "자녀 이름을 입력해주세요"
             )
+            childNameError?.let { FieldError(it) }
 
             Spacer(modifier = Modifier.height(16.dp))
             AuthField(
@@ -183,6 +198,7 @@ fun SignUpScreen(onSignUpComplete: () -> Unit, onBackToLogin: () -> Unit) {
                 placeholder = "아이의 나이를 입력해주세요",
                 keyboardType = KeyboardType.Number
             )
+            childAgeError?.let { FieldError(it) }
 
             Spacer(modifier = Modifier.height(24.dp))
             Text(

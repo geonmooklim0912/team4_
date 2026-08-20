@@ -1,6 +1,5 @@
 package com.example.team4uu.ui.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,36 +16,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
 import com.example.team4uu.ui.components.AuthField
 import com.example.team4uu.ui.theme.FriendIconPink
 import com.example.team4uu.ui.theme.FriendPink
-import com.example.team4uu.viewmodel.AuthViewModel
 
 // 신규 사용자 또는 로그아웃 상태에서 앱을 열었을 때 보여지는 로그인 화면.
-// 로그인에 성공하면 기존 메인 화면("시작하기" -> 카메라)으로 넘어감.
-// username은 로그인한 계정의 아이디로, 계정별로 친구 목록을 분리해서 보여주는 데 씀(FriendViewModel 참고).
-// 친구가 하나도 없는 계정으로 로그인하면 MainScreen이 자동으로 EmptyFriendScreen(온보딩)을 보여줌.
+// 실제 로그인 호출은 MainScreen이 들고 있는 AuthRepository(TokenStore)가 하고,
+// 이 화면은 입력값만 모아서 onServerLogin으로 넘김 — 성공하면 MainScreen이 계정별
+// 친구 목록 전환(FriendViewModel.setCurrentUser)까지 처리함.
 @Composable
-fun LoginScreen(onLoginClick: (username: String) -> Unit, onSignUpClick: () -> Unit) {
-    val authViewModel: AuthViewModel = viewModel()
-
+fun LoginScreen(
+    onServerLogin: (username: String, password: String) -> Unit,
+    isLoggingIn: Boolean,
+    serverError: String?,
+    onSignUpClick: () -> Unit
+) {
     var account by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
     // 서버까지 갈 것도 없이 앱에서 막는 경우(빈 칸)만 여기서 쓴다.
-    // 아이디·비밀번호가 틀렸는지는 서버만 알 수 있으므로 serverError 로 온다.
+    // 아이디·비밀번호가 틀렸는지는 서버만 알 수 있으므로 serverError로 온다.
     var inputError by remember { mutableStateOf<String?>(null) }
-
-    //Toast 메시지 등을 띄울 때 필요한 Context
-    val context = LocalContext.current
 
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
@@ -108,18 +104,13 @@ fun LoginScreen(onLoginClick: (username: String) -> Unit, onSignUpClick: () -> U
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = {
-                    authViewModel.login(
-                        username = account,
-                        password = password,
-                        onSuccess = {
-                            loginError = false
-                            onLoginClick(account)
-                        },
-                        onError = {
-                            loginError = true
-                            Toast.makeText(context, "네트워크 오류로 로그인에 실패했습니다.", Toast.LENGTH_SHORT).show()
-                        }
-                    )
+                    inputError = when {
+                        account.isBlank() || password.isBlank() -> "아이디와 비밀번호를 입력해주세요."
+                        else -> null
+                    }
+                    if (inputError == null) {
+                        onServerLogin(account, password)
+                    }
                 },
                 // 연타하면 로그인 요청이 여러 번 나간다.
                 enabled = !isLoggingIn,

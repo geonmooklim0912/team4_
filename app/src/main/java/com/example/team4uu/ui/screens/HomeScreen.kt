@@ -64,7 +64,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.team4uu.R
 import com.example.team4uu.data.Friend
-import com.example.team4uu.ui.CURRENT_MISSION_STAGE
 import com.example.team4uu.ui.components.HomeOptionsPanel
 import com.example.team4uu.ui.components.livingCharacterEffect
 import com.example.team4uu.ui.components.rememberFriendCharacterPainter
@@ -94,10 +93,13 @@ private val ROOM_BACKGROUND_UNLOCK_STAGE = listOf(0, 1, 3, 5, 6)
 @Composable
 fun MainHomeContent(
     friends: List<Friend>,
+    currentMissionStage: Int,
     onAddFriendClick: () -> Unit,
     onMissionRoadmapClick: () -> Unit,
     onFeedClick: (Friend) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onRenameFriend: (Friend, String) -> Unit,
+    onDeleteFriend: (Friend) -> Unit
 ) {
     // FriendDao가 createdAt DESC로 정렬해서 주므로 **맨 앞이 가장 최근에 등록된 친구**다.
     // (lastOrNull()은 가장 오래된 친구라서 새로 등록한 인형이 선택되지 않았다)
@@ -129,7 +131,7 @@ fun MainHomeContent(
     var lastUnlockedPage by remember { mutableIntStateOf(0) }
     LaunchedEffect(backgroundPagerState.currentPage) {
         val settledPage = backgroundPagerState.currentPage
-        if (ROOM_BACKGROUND_UNLOCK_STAGE[settledPage] <= CURRENT_MISSION_STAGE) {
+        if (ROOM_BACKGROUND_UNLOCK_STAGE[settledPage] <= currentMissionStage) {
             lastUnlockedPage = settledPage
         }
     }
@@ -250,7 +252,7 @@ fun MainHomeContent(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val requiredStage = ROOM_BACKGROUND_UNLOCK_STAGE[page]
-                val isLocked = requiredStage > CURRENT_MISSION_STAGE
+                val isLocked = requiredStage > currentMissionStage
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     // 아래로 ROOM_BACKGROUND_PEEK만큼 더 키워서, 옵션 패널의 둥근 모서리 뒤로 살짝 넘쳐 보이게 함
@@ -409,11 +411,14 @@ fun MainHomeContent(
             HomeOptionsPanel(
                 friends = friends,
                 selectedFriendId = selectedFriendId,
+                currentMissionStage = currentMissionStage,
                 onCollapse = { selectorExpanded = false },
                 onSelectFriend = { selectedFriendId = it.id },
                 onAddFriendClick = onAddFriendClick,
                 onMissionRoadmapClick = onMissionRoadmapClick,
-                onFeedClick = { selectedFriend?.let(onFeedClick) }
+                onFeedClick = { selectedFriend?.let(onFeedClick) },
+                onRenameFriend = onRenameFriend,
+                onDeleteFriend = onDeleteFriend
             )
         }
     }

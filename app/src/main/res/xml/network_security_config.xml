@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- TODO: 실제 백엔드 서버가 HTTPS로 확정되면, cleartext 허용 범위를 그 서버가 필요할 때만(도메인 지정)으로 좁히는 걸 권장.
-     지금은 백엔드 주소가 아직 정해지지 않아서, 개발 중 어떤 서버든 바로 붙일 수 있게 전체 cleartext(HTTP)를 허용함. -->
-<network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
-</network-security-config>

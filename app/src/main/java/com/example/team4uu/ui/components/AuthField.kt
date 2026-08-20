@@ -27,9 +27,10 @@ fun AuthField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     isPassword: Boolean = false,
-    keyboardType: KeyboardType = KeyboardType.Unspecified
+    keyboardType: KeyboardType = KeyboardType.Unspecified,
+    modifier: Modifier = Modifier
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
         Spacer(modifier = Modifier.height(8.dp))
         TextField(
