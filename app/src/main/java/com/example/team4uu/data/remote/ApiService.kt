@@ -7,6 +7,7 @@ import com.example.team4uu.data.remote.dto.SignUpRequest
 import com.example.team4uu.data.remote.dto.SignUpResponse
 import com.example.team4uu.data.remote.dto.StylizeResponse
 import com.example.team4uu.data.remote.dto.UpdateKeywordRequest
+import com.example.team4uu.data.remote.dto.UpdateNameRequest
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import retrofit2.http.Body
@@ -25,6 +26,10 @@ interface ApiService {
 
     @PATCH("api/users/me/keyword")
     suspend fun updateKeyword(@Body request: UpdateKeywordRequest): Response<ResponseBody>
+
+    // 자녀 이름 변경
+    @PATCH("api/users/me/name")
+    suspend fun updateName(@Body request: UpdateNameRequest): Response<ResponseBody>
 
     // 밥 먹기 시작 시 고른 오늘의 목표(최대 3개)를 서버에 기록
     @POST("api/goal-tags")

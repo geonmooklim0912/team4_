@@ -15,8 +15,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.team4uu.ui.theme.FriendPink
 
-// 홈 화면 좌측 상단 톱니바퀴를 누르면 뜨는 설정 메뉴. "이름 변경"은 아직 백엔드 명세가
-// 없어서 자리만 잡아둠(로그인 화면의 "아이디 찾기"와 같은 TODO 스텁).
+// 홈 화면 좌측 상단 톱니바퀴를 누르면 뜨는 설정 메뉴.
 @Composable
 fun SettingsMenuDialog(
     onDismiss: () -> Unit,
@@ -32,7 +31,7 @@ fun SettingsMenuDialog(
             Column(modifier = Modifier.padding(20.dp).width(220.dp)) {
                 Text(text = "설정", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(16.dp))
-                SettingsMenuRow(text = "아이 이름 변경", onClick = onEditNameClick)
+                SettingsMenuRow(text = "자녀 이름 변경", onClick = onEditNameClick)
                 Spacer(modifier = Modifier.height(4.dp))
                 SettingsMenuRow(text = "관심사 변경", onClick = onEditInterestsClick)
                 Spacer(modifier = Modifier.height(12.dp))

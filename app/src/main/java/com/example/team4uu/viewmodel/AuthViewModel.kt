@@ -58,4 +58,19 @@ class AuthViewModel : ViewModel() {
             }
         }
     }
+
+    fun updateName(
+        name: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                repo.updateName(name)
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.message ?: "이름 변경 실패")
+            }
+        }
+    }
 }
