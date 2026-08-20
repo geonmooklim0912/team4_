@@ -50,7 +50,8 @@ class TalkSocket {
         token: String,
         child: ChildProfile? = null,
         dollName: String? = null,
-        mode: String = MODE_MEAL
+        mode: String = MODE_MEAL,
+        goals: List<String> = emptyList()
     ): Flow<TalkEvent> = callbackFlow {
         failureReported = false
 
@@ -125,7 +126,7 @@ class TalkSocket {
             }
         }
 
-        val url = buildUrl(token, child, dollName, mode)
+        val url = buildUrl(token, child, dollName, mode, goals)
         // 🔐 URL 을 통째로 찍으면 쿼리에 JWT 와 아이 이름이 들어 있다. 경로만 남긴다.
         Log.i(TAG, "연결 시도 ${url.host}${url.encodedPath}")
 
@@ -177,7 +178,8 @@ class TalkSocket {
         token: String,
         child: ChildProfile?,
         dollName: String?,
-        mode: String
+        mode: String,
+        goals: List<String>
     ): HttpUrl {
         // ② 스킴을 wss:// 로 바꾸지 않는다. OkHttp 가 http(s) URL 을 받아 알아서
         //    업그레이드한다. addQueryParameter 가 percent-encoding 도 처리하므로
@@ -206,6 +208,24 @@ class TalkSocket {
         // 밥 먹기면 음식 이야기를 꺼내도 되고, 놀기면 먼저 꺼내지 않는다.
         // 서버가 모르는 값은 meal 로 되돌리므로 오타가 대화를 깨뜨리진 않는다.
         builder.addQueryParameter("mode", mode)
+
+        // 이번 식사에 아이가 고른 오늘의 목표. FeedMissionDialog 에서 고른 값이
+        // FeedingScreen 을 거쳐 여기까지 온다. 서버는 이걸 페르소나에 넣어
+        // 인형이 목표를 놀이처럼 유도하게 한다.
+        //
+        // 🔴 서버가 goal_tags 테이블을 조회하지 않는 이유: 그 테이블은 '자주 쓰는
+        //    문구 사전'이라 UNIQUE(user_id, content) 로 중복을 합치고 use_count 만
+        //    쌓는다. **오늘 무엇을 골랐는지는 거기서 알 수 없다.** 대화를 시작하는
+        //    화면이 그 값을 이미 들고 있으므로 앱이 실어 보내는 게 유일한 정답이다.
+        //
+        // ⚠️ 서버가 mode=meal 일 때만 쓴다. 놀기 화면에서 보내도 무시되지만,
+        //    애초에 호출부가 안 보내는 게 맞다(홈에서 "당근 먹자"는 이상하다).
+        // ⚠️ 쉼표로 잇는다. 목표 문구 자체에 쉼표가 들어가면 서버에서 둘로 쪼개진다 —
+        //    문구가 어색해질 뿐 대화는 정상이라 지금은 감수한다.
+        val cleanGoals = goals.filter { it.isNotBlank() }
+        if (cleanGoals.isNotEmpty()) {
+            builder.addQueryParameter("goals", cleanGoals.joinToString(","))
+        }
         return builder.build()
     }
 

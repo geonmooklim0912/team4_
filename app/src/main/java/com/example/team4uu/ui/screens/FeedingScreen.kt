@@ -185,7 +185,11 @@ fun FeedingScreen(
                                                 token = token.orEmpty(),
                                                 dollName = friend?.name,
                                                 // 밥 먹기 화면. 음식 이야기를 꺼내도 되는 상황이다.
-                                                mode = TalkSocket.MODE_MEAL
+                                                mode = TalkSocket.MODE_MEAL,
+                                                // 밥 먹기를 시작할 때 FeedMissionDialog 에서
+                                                // 고른 오늘의 목표. 인형이 이걸 놀이처럼
+                                                // 유도한다(서버 ai/dialog_test.goal_block).
+                                                goals = goals
                                         )
                                 } else {
                                         micPermissionLauncher.launch(

@@ -97,10 +97,13 @@ class TalkViewModel(application: Application) : AndroidViewModel(application) {
     // dollName 은 Friend.name 을 그대로 넘기면 된다.
     // mode 는 어느 화면에서 부르는지다(TalkSocket.MODE_MEAL / MODE_PLAY).
     // 서버가 이 값으로 상황 블록을 고른다 — 놀기 화면에서 "밥 먹자"가 나오지 않게.
+    // goals — 이번 식사에 고른 오늘의 목표. mode 가 MODE_MEAL 일 때만 의미가 있다
+    // (서버가 놀기 모드에서는 무시한다). 인형이 이 목표를 놀이처럼 유도한다.
     fun start(
         token: String,
         dollName: String? = null,
-        mode: String = TalkSocket.MODE_MEAL
+        mode: String = TalkSocket.MODE_MEAL,
+        goals: List<String> = emptyList()
     ) {
         // 두 번 누르면 세션이 두 개 열리고 크레딧이 두 배로 나간다.
         //
@@ -126,7 +129,13 @@ class TalkViewModel(application: Application) : AndroidViewModel(application) {
 
         session =
                 viewModelScope.launch {
-                    socket.connect(token = token, child = child, dollName = dollName, mode = mode).collect {
+                    socket.connect(
+                        token = token,
+                        child = child,
+                        dollName = dollName,
+                        mode = mode,
+                        goals = goals
+                    ).collect {
                         onEvent(it)
                     }
                     // 흐름이 끝났다 = 소켓이 닫혔다. 실패로 끝났으면 그 상태를 덮지 않는다.
