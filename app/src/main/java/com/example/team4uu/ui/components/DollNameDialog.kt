@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -77,6 +78,11 @@ fun DollNameDialog(
                     singleLine = true,
                     isError = error != null,
                     placeholder = { Text("예: 초록이", color = Color.LightGray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedTextColor = Color.Black,
+                        focusedTextColor = Color.Black,
+                        cursorColor = Color.Black
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
 

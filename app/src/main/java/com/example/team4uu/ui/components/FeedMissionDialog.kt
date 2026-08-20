@@ -200,7 +200,10 @@ private fun AddMissionDialog(onDismiss: () -> Unit, onSave: (text: String, saveT
                         unfocusedContainerColor = FriendCardTan,
                         focusedContainerColor = FriendCardTan,
                         unfocusedIndicatorColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedTextColor = Color.Black,
+                        focusedTextColor = Color.Black,
+                        cursorColor = Color.Black
                     ),
                     modifier = Modifier
                         .fillMaxWidth()

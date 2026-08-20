@@ -44,6 +44,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -73,6 +75,8 @@ import com.example.team4uu.data.remote.TalkSocket
 import com.example.team4uu.data.remote.TokenManager
 import com.example.team4uu.viewmodel.TalkViewModel
 import com.example.team4uu.ui.theme.FriendPink
+import com.example.team4uu.ui.theme.FriendCardTan
+import com.example.team4uu.ui.theme.DollSpeechBrown
 import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
 import kotlin.math.roundToInt
@@ -139,10 +143,6 @@ fun MainHomeContent(
     }
 
     val context = LocalContext.current
-
-    // TODO: 캐릭터가 실제로 말하게 되면(TTS) 이 값으로 소리를 켜고 끔. 지금은 아직 캐릭터가 말을 안 해서
-    // 상태만 토글되는 껍데기 버튼.
-    var isMuted by remember { mutableStateOf(false) }
 
     // 마이크로 사용자 말 받아쓰기(SpeechRecognizer) 관련 상태
     var hasAudioPermission by remember {
@@ -385,13 +385,12 @@ fun MainHomeContent(
                     // 지금 무엇을 하면 되는지 알려주는 자리. 인형이 한 말은 여기가
                     // 아니라 캐릭터 머리 위 말풍선에 뜬다 — 둘을 섞으면 안내인지
                     // 인형 대사인지 구분이 안 된다.
-                    if (!isListening) {
-                        VoiceHintBubble(text = talkHint(talkState))
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
+                    //
+                    // 듣고 있는 중(isListening)에도 이 안내는 계속 띄운다 — 안 그러면
+                    // 사용자가 버튼을 다시 눌러야 마이크가 꺼진다는 걸 알 방법이 없다.
+                    VoiceHintBubble(text = talkHint(talkState))
+                    Spacer(modifier = Modifier.height(16.dp))
                     VoiceControlRow(
-                        isMuted = isMuted,
-                        onMuteClick = { isMuted = !isMuted },
                         isListening = isListening,
                         onTalkClick = ::onTalkButtonClick,
                         isCameraBackgroundActive = isCameraBackgroundActive,
@@ -483,6 +482,8 @@ private const val SPEECH_BUBBLE_HOLD_MS = 4_000L
 private fun talkHint(state: TalkViewModel.TalkState): String = when (state) {
     is TalkViewModel.TalkState.Failed -> state.error.userMessage
     is TalkViewModel.TalkState.Connecting -> "친구를 부르는 중이에요..."
+    // 듣고 있는 중 — 다시 눌러야 마이크가 꺼진다는 걸 알려준다.
+    is TalkViewModel.TalkState.Listening -> "말이 끝나면 한 번 더 눌러주세요"
     is TalkViewModel.TalkState.Ready,
     is TalkViewModel.TalkState.Speaking -> "버튼을 누르고 이야기해보세요!"
     else -> "아래 버튼을 클릭 후 자유롭게 말해보세요!"
@@ -495,18 +496,25 @@ private fun talkHint(state: TalkViewModel.TalkState): String = when (state) {
 private fun dollSpeechText(transcript: String): String? = transcript.ifBlank { null }
 
 // 캐릭터 머리 위에 뜨는 인형 대사 말풍선.
+//
+// 딱딱한 흰 박스 대신, 웜톤 배경을 블러로 은은하게 번지게 하고 그 위에 글씨만 얹는다.
+// BlurredEdgeTreatment.Unbounded 를 써야 블러가 박스 경계에서 잘리지 않고 자연스럽게 퍼진다.
 @Composable
 private fun DollSpeechBubble(text: String, modifier: Modifier = Modifier) {
-    Surface(
-        color = Color.White,
-        // 왼쪽 아래만 각지게 해서 말풍선 꼬리처럼 보이게 한다.
-        shape = RoundedCornerShape(20.dp, 20.dp, 20.dp, 4.dp),
-        shadowElevation = 4.dp,
-        modifier = modifier
-    ) {
+    Box(contentAlignment = Alignment.Center, modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .blur(radius = 18.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                .background(
+                    color = FriendCardTan.copy(alpha = 0.92f),
+                    // 왼쪽 아래만 각지게 해서 말풍선 꼬리처럼 보이게 한다.
+                    shape = RoundedCornerShape(24.dp, 24.dp, 24.dp, 6.dp)
+                )
+        )
         Text(
             text = text,
-            color = Color.Black,
+            color = DollSpeechBrown,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -535,8 +543,6 @@ private fun VoiceHintBubble(text: String = "아래 버튼을 클릭 후 자유�
 // 음소거(왼쪽) / 말하기(가운데, 마이크 입력 시작·중지) / 카메라 배경 전환(오른쪽) 버튼 줄
 @Composable
 private fun VoiceControlRow(
-    isMuted: Boolean,
-    onMuteClick: () -> Unit,
     isListening: Boolean,
     onTalkClick: () -> Unit,
     isCameraBackgroundActive: Boolean,
@@ -549,15 +555,8 @@ private fun VoiceControlRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_mute),
-            contentDescription = if (isMuted) "음소거 해제" else "음소거",
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onMuteClick)
-                .graphicsLayer { alpha = if (isMuted) 1f else 0.55f }
-        )
+        // 음소거 버튼 자리 — 말하기 버튼을 가운데 맞추려고 카메라 버튼과 같은 크기로 비워둔다.
+        Spacer(modifier = Modifier.size(48.dp))
 
         // 마이크로 듣고 있는 동안 살짝 두근거리는 느낌을 주는 펄스 애니메이션
         val infiniteTransition = rememberInfiniteTransition(label = "talkPulse")
@@ -571,7 +570,7 @@ private fun VoiceControlRow(
             label = "talkPulseScale"
         )
         Image(
-            painter = painterResource(id = R.drawable.ic_talk_button),
+            painter = painterResource(id = R.drawable.talk_icon),
             contentDescription = if (isListening) "말하기 중지" else "마이크로 말하기 시작",
             modifier = Modifier
                 .size(84.dp)

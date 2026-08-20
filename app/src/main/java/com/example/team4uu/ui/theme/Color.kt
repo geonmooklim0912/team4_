@@ -16,3 +16,6 @@ val FriendPink = Color(0xFFCC2F64)
 val FriendIconPink = Color(0xFFD63872)
 val FriendCardTan = Color(0xFFFBEABE)
 val CameraBackgroundDark = Color(0xFF1E1E1E)
+
+// 인형 대사 말풍선 — 블러 배경 위에 얹는 진갈색 글씨
+val DollSpeechBrown = Color(0xFF4A2510)
