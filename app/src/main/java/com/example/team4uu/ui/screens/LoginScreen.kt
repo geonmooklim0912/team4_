@@ -41,9 +41,7 @@ fun LoginScreen(onLoginClick: (username: String) -> Unit, onSignUpClick: () -> U
     var account by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    // 서버까지 갈 것도 없이 앱에서 막는 경우(빈 칸)만 여기서 쓴다.
-    // 아이디·비밀번호가 틀렸는지는 서버만 알 수 있으므로 serverError 로 온다.
-    var inputError by remember { mutableStateOf<String?>(null) }
+    var loginError by remember { mutableStateOf(false) }
 
     //Toast 메시지 등을 띄울 때 필요한 Context
     val context = LocalContext.current
@@ -93,12 +91,10 @@ fun LoginScreen(onLoginClick: (username: String) -> Unit, onSignUpClick: () -> U
                 isPassword = true
             )
 
-            // 입력 문제(빈 칸)가 있으면 그걸 먼저 보여준다. 서버까지 갔다 온 실패는
-            // 그다음이다 — 방금 누른 것에 대한 답이 먼저 보여야 한다.
-            (inputError ?: serverError)?.let { message ->
+            if (loginError) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = message,
+                    text = "아이디 또는 비밀번호가 일치하지 않습니다.",
                     color = FriendPink,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
@@ -121,8 +117,6 @@ fun LoginScreen(onLoginClick: (username: String) -> Unit, onSignUpClick: () -> U
                         }
                     )
                 },
-                // 연타하면 로그인 요청이 여러 번 나간다.
-                enabled = !isLoggingIn,
                 colors = ButtonDefaults.buttonColors(containerColor = FriendPink),
                 shape = RoundedCornerShape(30.dp),
                 modifier = Modifier
@@ -130,7 +124,7 @@ fun LoginScreen(onLoginClick: (username: String) -> Unit, onSignUpClick: () -> U
                     .height(56.dp)
             ) {
                 Text(
-                    text = if (isLoggingIn) "로그인 중..." else "로그인",
+                    text = "로그인",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp

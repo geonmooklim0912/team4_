@@ -35,8 +35,13 @@ object RetrofitClient{
         .addInterceptor(logging)
         // 기본 10초 타임아웃으로는 /doll/stylize처럼 사진을 업로드하고 서버가 변환하는 데
         // 시간이 걸리는 요청이 중간에 끊길 수 있어서 넉넉하게 늘림.
+        //
+        // 🔴 readTimeout 은 60초로는 모자란다. 인형 등록은 정상적으로도 약 28초 걸리고
+        //    (스프라이트 5장), Gemini 가 빈 응답을 주면(실측 6회 중 1회) 서버가 3회까지
+        //    재시도한다. 서버 예산이 180초라 60초로 두면 **앱이 먼저 끊어서** 사용자는
+        //    1분을 기다린 뒤 실패만 본다.
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 

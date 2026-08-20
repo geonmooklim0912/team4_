@@ -1,12 +1,10 @@
 package com.example.team4uu.data.remote
 
 import com.example.team4uu.BuildConfig
-import com.example.team4uu.data.TokenStore
 import com.example.team4uu.data.remote.dto.ApiError
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import java.util.concurrent.TimeUnit
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.HttpException
@@ -23,28 +21,9 @@ object NetworkModule {
         .add(KotlinJsonAdapterFactory())
         .build()
 
-    // 🔴 로그인해서 받은 JWT 를 모든 요청에 붙인다.
-    //
-    // 서버가 /doll/stylize 를 포함해 대부분의 라우트에 인증을 걸어 뒀다. 이게 없으면
-    // 사진을 28초 변환한 뒤가 아니라 시작하자마자 401 로 떨어진다.
-    //
-    // ⚠️ 선언 순서가 중요하다 — object 의 프로퍼티는 적힌 순서대로 초기화되므로,
-    //    아래 client 보다 **먼저** 있어야 한다. 뒤에 두면 client 가 만들어질 때
-    //    null 을 잡는다.
-    //
-    // 토큰이 없으면(로그인 전) 헤더를 아예 붙이지 않는다. 빈 헤더를 붙이면 서버
-    // 로그에 "Bearer " 만 남아서 만료된 것인지 로그인을 안 한 것인지 구분이 안 된다.
-    private val authInterceptor = Interceptor { chain ->
-        val token = TokenStore.current()
-        val request = if (token.isNullOrBlank()) {
-            chain.request()
-        } else {
-            chain.request().newBuilder()
-                .header("Authorization", "Bearer $token")
-                .build()
-        }
-        chain.proceed(request)
-    }
+    // 📌 Authorization 헤더는 여기서 붙이지 않는다. 로그인 토큰은 TokenManager 가 들고
+    //    있고, 헤더를 붙이는 인터셉터는 RetrofitClient 에 있다. 여기에도 두면 인증
+    //    경로가 둘이 되어, 토큰이 어느 쪽 통에 들어갔는지에 따라 되기도 안 되기도 한다.
 
     // 🔴 타임아웃이 이 파일에서 가장 중요하다.
     //    변환은 정상적으로도 약 28초 걸린다(스프라이트 5장). OkHttp 기본 readTimeout 은
@@ -54,7 +33,6 @@ object NetworkModule {
         .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .callTimeout(150, TimeUnit.SECONDS)
-        .addInterceptor(authInterceptor)
         .addInterceptor(
             HttpLoggingInterceptor().apply {
                 // BODY 로 두면 스프라이트 PNG 바이트가 통째로 로그에 찍힌다.

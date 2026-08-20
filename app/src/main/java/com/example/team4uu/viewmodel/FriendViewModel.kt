@@ -8,6 +8,7 @@ import com.example.team4uu.data.AppDatabase
 import com.example.team4uu.data.DollRegistrationRepository
 import com.example.team4uu.data.Friend
 import com.example.team4uu.data.FriendRepository
+import com.example.team4uu.data.SpriteStorage
 import com.example.team4uu.data.remote.DollRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +22,9 @@ import java.io.File
 class FriendViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = FriendRepository(AppDatabase.getInstance(application).friendDao())
     private val dollRepository = DollRepository()
+
+    // 대화 중 입 모양 교체(립싱크)에 쓸 스프라이트를 기기에 보관한다.
+    private val spriteStorage = SpriteStorage(application)
 
     // 현재 로그인한 계정의 아이디. 계정마다 친구 목록을 분리해서 보여주기 위한 기준 키로,
     // 로그인할 때 setCurrentUser로 설정됨.
@@ -63,12 +67,20 @@ class FriendViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val result = dollRepository.stylizeDoll(File(imagePath))
                 // sprites의 첫 번째 항목이 홈 화면에 띄울 대표 이미지
-                repository.addFriend(
+                val friendId = repository.addFriend(
                     ownerUsername = owner,
                     name = name,
                     imagePath = imagePath,
                     characterAssetPath = result.sprites.firstOrNull()
                 )
+
+                // 립싱크는 입 모양 3장을 초당 30번까지 교체한다. 네트워크로는 못 따라가서
+                // 등록할 때 한 번 내려받아 둔다(TalkingCharacterPainter 가 이 파일을 읽는다).
+                // 실패해도 등록 자체는 성공으로 둔다 — 립싱크만 빠지고 대화는 그대로 된다.
+                runCatching {
+                    val temp = spriteStorage.downloadToTemp(result.sprite_map)
+                    spriteStorage.commit(temp, friendId)
+                }.onFailure { Log.w(TAG, "스프라이트 저장 실패 — 립싱크 없이 진행", it) }
             } catch (e: Exception) {
                 onError(e.message ?: "인형 만들기에 실패했습니다.")
             } finally {

@@ -25,7 +25,8 @@ class DollRegistrationRepository(
     // 서버 상한과 같은 값. 여기서 먼저 걸러야 28초를 기다린 뒤 400 을 받는 일이 없다.
     private val maxUploadBytes = 10L * 1024 * 1024
 
-    suspend fun register(name: String, photoPath: String): Long {
+    // ownerUsername: 계정별로 친구 목록을 분리하면서 필수가 됐다(FriendRepository 참조).
+    suspend fun register(ownerUsername: String, name: String, photoPath: String): Long {
         val photo = File(photoPath)
         if (!photo.exists() || photo.length() == 0L) {
             throw StylizeException.of("INVALID_IMAGE", "사진 파일이 없음: $photoPath")
@@ -56,14 +57,18 @@ class DollRegistrationRepository(
             // 지금 범위(정지 이미지)에서는 화면에 아무 차이가 없다.
             Log.w(TAG, "스프라이트 일부 실패: ${response.failed.joinToString()}")
         }
-        Log.i(TAG, "변환 완료 ${response.elapsedMs}ms, ${response.spriteMap.size}장")
+        Log.i(TAG, "변환 완료 ${response.elapsed_ms}ms, ${response.sprite_map.size}장")
 
         // 다운로드를 먼저 끝내고 나서 DB 에 넣는다. 순서를 바꾸면 다운로드가 실패했을 때
         // 이미 등록된 친구를 되돌려 지워야 한다.
-        val temp = spriteStorage.downloadToTemp(response.spriteMap)
+        val temp = spriteStorage.downloadToTemp(response.sprite_map)
 
         val friendId = try {
-            friendRepository.addFriend(name = name, imagePath = photoPath)
+            friendRepository.addFriend(
+                ownerUsername = ownerUsername,
+                name = name,
+                imagePath = photoPath
+            )
         } catch (e: Exception) {
             temp.deleteRecursively()
             throw e
