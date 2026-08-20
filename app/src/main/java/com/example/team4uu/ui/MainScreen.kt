@@ -57,6 +57,7 @@ import com.example.team4uu.ui.screens.MissionRoadmapScreen
 import com.example.team4uu.ui.screens.SignUpScreen
 import com.example.team4uu.viewmodel.AuthViewModel
 import com.example.team4uu.viewmodel.FriendViewModel
+import com.example.team4uu.viewmodel.TalkViewModel
 import kotlinx.coroutines.launch
 
 private enum class AuthStep {
@@ -95,6 +96,10 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     val isCreatingFriend by
             friendViewModel.isCreatingFriend.collectAsState() // 사진을 서버로 보내 인형으로 변환하는 중인지
     val authViewModel: AuthViewModel = viewModel()
+    // MainHomeContent/FeedingScreen이 쓰는 것과 같은 인스턴스(viewModel()은 액티비티
+    // 스코프라 화면이 달라도 하나를 공유한다). 설정에서 이름/관심사를 바꿨을 때 지금
+    // 대화 중인 세션이 있으면 여기서 바로 재연결시키려고 끌어왔다.
+    val talkViewModel: TalkViewModel = viewModel()
 
     // 홈 화면 좌측 상단 톱니바퀴 -> 설정 메뉴 -> 관심사 변경/자녀 이름 변경 팝업으로 이어지는 흐름의 상태
     var showSettingsMenu by remember { mutableStateOf(false) }
@@ -301,9 +306,22 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                         INTEREST_OPTIONS.filter { interestKeyword(it) in TokenManager.keywords },
                 onDismiss = { showInterestEditDialog = false },
                 onConfirm = { selected ->
+                    val newInterests = selected.map { interestKeyword(it) }
                     authViewModel.updateKeyword(
-                            keywords = selected.map { interestKeyword(it) },
+                            keywords = newInterests,
                             onSuccess = {
+                                // 이름·나이는 그대로 두고 관심사만 바꿔서 로컬(ChildProfileStore)에도 반영.
+                                // 이름이 로컬에 아직 없으면(=이 사용자가 "이름 변경"을 한 번도 쓴 적 없어서
+                                // 로컬에 이름이 저장된 적이 없으면) 여기서 빈 이름으로 새로 만들어 저장하지
+                                // 않는다 — TalkSocket이 child가 null이 아니면 빈 이름이라도 그대로 서버에
+                                // 보내서, 서버가 기본 이름 대신 인형이 아이를 빈 이름으로 부르게 된다.
+                                val existing = childProfileStore.load()
+                                if (existing != null) {
+                                    childProfileStore.save(existing.copy(interests = newInterests))
+                                }
+                                // 지금 대화 중이면(Gemini Live는 세션 도중 persona를 못 바꾸므로)
+                                // 통째로 재연결해야 방금 바뀐 관심사가 실제 대화에 반영된다.
+                                talkViewModel.reconnectWithLatestProfile()
                                 showInterestEditDialog = false
                                 Toast.makeText(context, "관심사가 변경되었습니다.", Toast.LENGTH_SHORT).show()
                             },
@@ -333,6 +351,9 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                                                 interests = existing?.interests ?: emptyList()
                                         )
                                 )
+                                // 지금 대화 중이면(Gemini Live는 세션 도중 persona를 못 바꾸므로)
+                                // 통째로 재연결해야 방금 바뀐 이름이 실제 대화에 반영된다.
+                                talkViewModel.reconnectWithLatestProfile()
                                 showChildNameEditDialog = false
                                 Toast.makeText(context, "자녀 이름이 변경되었습니다.", Toast.LENGTH_SHORT).show()
                             },

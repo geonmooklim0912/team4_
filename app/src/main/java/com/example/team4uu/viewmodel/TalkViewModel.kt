@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.team4uu.data.ChildProfile
 import com.example.team4uu.data.ChildProfileStore
 import com.example.team4uu.data.audio.DollSpeaker
 import com.example.team4uu.data.audio.LipSync
@@ -90,6 +91,13 @@ class TalkViewModel(application: Application) : AndroidViewModel(application) {
     // activity_end 를 보낸 시각. 여기부터 인형의 첫 소리까지가 TTFB 다.
     private var speechEndedAt = 0L
 
+    // 마지막으로 연 세션의 연결 정보. reconnectWithLatestProfile() 이 같은 조건으로
+    // 다시 연결할 때 쓴다(설정 화면은 이 값들을 모른다 — 대화를 연 화면만 안다).
+    private var lastToken: String? = null
+    private var lastDollName: String? = null
+    private var lastMode: String = TalkSocket.MODE_MEAL
+    private var lastGoals: List<String> = emptyList()
+
     // 대화를 시작한다.
     //
     // token 은 밖에서 받는다 — 앱에 로그인 API 배선이 아직 없어서(팀원 작업)
@@ -115,17 +123,62 @@ class TalkViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        _contextLost.value = false
+
+        // 🔐 아이 이름이 들어 있다. 로그에 남기지 않는다 — 로그는 팀 전체가 보고
+        //    시연 중 화면에 띄우기도 한다(서버가 safe_repr() 로 가리는 것과 같은 이유).
+        beginSession(token, dollName, mode, goals, child = childProfileStore.load())
+    }
+
+    // 이름/관심사 변경(PATCH /me/name, /me/keyword) 성공 직후 호출한다.
+    //
+    // Gemini Live 는 연결된 세션의 persona(system_instruction)를 도중에 못 바꾼다.
+    // 그래서 서버 DB는 바로 바뀌어도, 이미 열려 있는 대화는 연결 시점에 고정된 이름·
+    // 관심사를 세션이 끝날 때까지 그대로 쓴다 — 통째로 닫고 새로 여는 것 말고는 방법이
+    // 없다. 지금 대화 중이 아니면 할 일이 없다: 다음 대화를 시작할 때 서버가 알아서
+    // 최신 DB 값을 읽는다.
+    fun reconnectWithLatestProfile() {
+        val token = lastToken
+        if (token == null || session?.isActive != true) return
+
+        // 기존 stop() 과 같은 뒷정리. 세션 중간에 말하고 있었을 수도 있으니 마이크부터 끊는다.
+        micJob?.cancel()
+        micJob = null
+        socket.close()
+        session?.cancel()
+        speaker.stop()
+
+        // 서버가 내부적으로 다시 붙을 때(session_reset)와 같은 흐름으로 다룬다 — 소켓만
+        // 새로 열고, 화면에는 "맥락을 잊었다"는 걸로 자연스럽게 보여준다. 진짜로 세션이
+        // 통째로 바뀌니 이전 대화 맥락이 사라지는 게 맞다.
+        _contextLost.value = true
+
+        // ⚠️ child 를 null 로 넘겨 child/age/interests 쿼리파라미터 자체를 생략한다.
+        // ChildProfileStore(로컬 캐시)를 다시 실으면 그 값이 서버 DB보다 우선 적용되는
+        // 구조라(서버가 빈 필드만 DB로 채움), 방금 PATCH로 반영된 최신값 대신 옛 캐시가
+        // 다시 이겨버릴 위험이 있다. 이 재연결의 목적 자체가 "최신 값 반영"이므로 아예
+        // 프로필을 생략해서 서버가 DB를 그대로 읽게 하는 쪽이 가장 안전하다.
+        beginSession(token, lastDollName, lastMode, lastGoals, child = null)
+    }
+
+    private fun beginSession(
+        token: String,
+        dollName: String?,
+        mode: String,
+        goals: List<String>,
+        child: ChildProfile?
+    ) {
+        lastToken = token
+        lastDollName = dollName
+        lastMode = mode
+        lastGoals = goals
+
         _state.value = TalkState.Connecting
         _transcript.value = ""
-        _contextLost.value = false
 
         // 첫 소리가 오자마자 재생하려면 미리 열어둬야 한다. 여기서 여는 비용은
         // 기기 오디오 장치를 잡는 것뿐이고 서버·크레딧과는 무관하다.
         speaker.start()
-
-        // 🔐 아이 이름이 들어 있다. 로그에 남기지 않는다 — 로그는 팀 전체가 보고
-        //    시연 중 화면에 띄우기도 한다(서버가 safe_repr() 로 가리는 것과 같은 이유).
-        val child = childProfileStore.load()
 
         session =
                 viewModelScope.launch {
