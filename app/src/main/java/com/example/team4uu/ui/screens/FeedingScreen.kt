@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.data.Friend
+import com.example.team4uu.data.remote.TalkSocket
 import com.example.team4uu.data.remote.TokenManager
 import com.example.team4uu.ui.components.livingCharacterEffect
 import com.example.team4uu.ui.components.rememberTalkingCharacterPainter
@@ -177,7 +178,9 @@ fun FeedingScreen(
                                 if (hasMicPermission) {
                                         talkViewModel.start(
                                                 token = token.orEmpty(),
-                                                dollName = friend?.name
+                                                dollName = friend?.name,
+                                                // 밥 먹기 화면. 음식 이야기를 꺼내도 되는 상황이다.
+                                                mode = TalkSocket.MODE_MEAL
                                         )
                                 } else {
                                         micPermissionLauncher.launch(

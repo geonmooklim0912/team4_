@@ -95,7 +95,13 @@ class TalkViewModel(application: Application) : AndroidViewModel(application) {
     // token 은 밖에서 받는다 — 앱에 로그인 API 배선이 아직 없어서(팀원 작업)
     // 이 화면이 그 작업을 기다리지 않게 하려는 것이다.
     // dollName 은 Friend.name 을 그대로 넘기면 된다.
-    fun start(token: String, dollName: String? = null) {
+    // mode 는 어느 화면에서 부르는지다(TalkSocket.MODE_MEAL / MODE_PLAY).
+    // 서버가 이 값으로 상황 블록을 고른다 — 놀기 화면에서 "밥 먹자"가 나오지 않게.
+    fun start(
+        token: String,
+        dollName: String? = null,
+        mode: String = TalkSocket.MODE_MEAL
+    ) {
         // 두 번 누르면 세션이 두 개 열리고 크레딧이 두 배로 나간다.
         //
         // ⚠️ null 검사가 아니라 isActive 로 본다. 끝난 Job 을 코루틴 안에서 null 로
@@ -120,7 +126,7 @@ class TalkViewModel(application: Application) : AndroidViewModel(application) {
 
         session =
                 viewModelScope.launch {
-                    socket.connect(token = token, child = child, dollName = dollName).collect {
+                    socket.connect(token = token, child = child, dollName = dollName, mode = mode).collect {
                         onEvent(it)
                     }
                     // 흐름이 끝났다 = 소켓이 닫혔다. 실패로 끝났으면 그 상태를 덮지 않는다.

@@ -49,7 +49,8 @@ class TalkSocket {
     fun connect(
         token: String,
         child: ChildProfile? = null,
-        dollName: String? = null
+        dollName: String? = null,
+        mode: String = MODE_MEAL
     ): Flow<TalkEvent> = callbackFlow {
         failureReported = false
 
@@ -124,7 +125,7 @@ class TalkSocket {
             }
         }
 
-        val url = buildUrl(token, child, dollName)
+        val url = buildUrl(token, child, dollName, mode)
         // 🔐 URL 을 통째로 찍으면 쿼리에 JWT 와 아이 이름이 들어 있다. 경로만 남긴다.
         Log.i(TAG, "연결 시도 ${url.host}${url.encodedPath}")
 
@@ -172,7 +173,12 @@ class TalkSocket {
 
     // --- 내부 ---------------------------------------------------------------
 
-    private fun buildUrl(token: String, child: ChildProfile?, dollName: String?): HttpUrl {
+    private fun buildUrl(
+        token: String,
+        child: ChildProfile?,
+        dollName: String?,
+        mode: String
+    ): HttpUrl {
         // ② 스킴을 wss:// 로 바꾸지 않는다. OkHttp 가 http(s) URL 을 받아 알아서
         //    업그레이드한다. addQueryParameter 가 percent-encoding 도 처리하므로
         //    한글 이름이 깨지지 않는다(서버 talk_client.py 의 urlencode 와 같은 결과).
@@ -195,11 +201,20 @@ class TalkSocket {
         if (!dollName.isNullOrBlank()) {
             builder.addQueryParameter("doll", dollName)
         }
+
+        // 어느 화면에서 연결했는지. 서버가 이 값으로 상황 블록을 고른다 —
+        // 밥 먹기면 음식 이야기를 꺼내도 되고, 놀기면 먼저 꺼내지 않는다.
+        // 서버가 모르는 값은 meal 로 되돌리므로 오타가 대화를 깨뜨리진 않는다.
+        builder.addQueryParameter("mode", mode)
         return builder.build()
     }
 
-    private companion object {
-        const val TAG = "TalkSocket"
+    companion object {
+        // 서버 server/profile.py 가 아는 값. 다른 문자열을 보내면 meal 로 처리된다.
+        const val MODE_MEAL = "meal"   // 밥 먹기 화면
+        const val MODE_PLAY = "play"   // 홈(놀기) 화면
+
+        private const val TAG = "TalkSocket"
         const val PATH = "doll/talk"
         const val CLOSE_NORMAL = 1000
 
