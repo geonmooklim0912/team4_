@@ -1,5 +1,6 @@
 package com.example.team4uu.data.remote
 
+import com.example.team4uu.data.remote.dto.GoalTagsRequest
 import com.example.team4uu.data.remote.dto.LoginRequest
 import com.example.team4uu.data.remote.dto.LoginResponse
 import com.example.team4uu.data.remote.dto.SignUpRequest
@@ -24,6 +25,10 @@ interface ApiService {
 
     @PATCH("api/users/me/keyword")
     suspend fun updateKeyword(@Body request: UpdateKeywordRequest): Response<ResponseBody>
+
+    // 밥 먹기 시작 시 고른 오늘의 목표(최대 3개)를 서버에 기록
+    @POST("api/goal-tags")
+    suspend fun postGoalTags(@Body request: GoalTagsRequest): Response<ResponseBody>
 
     // Authorization 헤더는 RetrofitClient의 인터셉터가 TokenManager에 저장된 토큰으로 자동으로 붙여줌
     @Multipart

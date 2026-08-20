@@ -22,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +37,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
 import com.example.team4uu.data.ChildProfileStore
 import com.example.team4uu.data.Friend
+import com.example.team4uu.data.remote.GoalRepository
 import com.example.team4uu.data.remote.TokenManager
 import com.example.team4uu.ui.components.DEFAULT_MISSION_TAGS
 import com.example.team4uu.ui.components.DollNameDialog
@@ -53,6 +55,7 @@ import com.example.team4uu.ui.screens.MissionRoadmapScreen
 import com.example.team4uu.ui.screens.SignUpScreen
 import com.example.team4uu.viewmodel.AuthViewModel
 import com.example.team4uu.viewmodel.FriendViewModel
+import kotlinx.coroutines.launch
 
 private enum class AuthStep {
     LOGIN,
@@ -72,6 +75,12 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     var pendingPhotoPath by remember { mutableStateOf<String?>(null) }
     // TODO: 실제로는 자주 쓰는 태그를 백엔드/DB에 저장해야 함. 아직 그게 없어서 세션 동안만 유지되는 상태로 관리.
     var savedMissionTags by remember { mutableStateOf(DEFAULT_MISSION_TAGS) }
+    // 밥 먹기 시작 시 고른 오늘의 목표(최대 3개). "끝내기"를 누르면 그대로 다시 보여줌.
+    var currentGoals by remember { mutableStateOf(listOf<String>()) }
+    // 미션 로드맵 단계별 별 진행도. 1단계는 별 2개가 이미 채워진 상태로 시작함.
+    var missionLevels by remember { mutableStateOf(initialMissionLevels()) }
+    val goalRepository = remember { GoalRepository() }
+    val coroutineScope = rememberCoroutineScope()
     var isLoggedIn by remember {
         mutableStateOf(false)
     } // TODO: 백엔드 인증 연동 후 실제 로그인 상태(토큰 존재 여부 등)로 교체
@@ -159,9 +168,26 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                 }
         )
     } else if (showMissionRoadmap) {
-        MissionRoadmapScreen(onClose = { showMissionRoadmap = false })
+        MissionRoadmapScreen(levels = missionLevels, onClose = { showMissionRoadmap = false })
     } else if (feedingFriend != null) {
-        FeedingScreen(friend = feedingFriend, onClose = { feedingFriend = null })
+        FeedingScreen(
+                friend = feedingFriend,
+                goals = currentGoals,
+                onClose = { feedingFriend = null },
+                onFinishSession = { achievedGoals ->
+                    // 3개 중 2개 이상 달성했으면 미션 로드맵에서 아직 다 못 채운 첫 단계의
+                    // 왼쪽 별부터 하나 채운다.
+                    if (achievedGoals.size >= 2) {
+                        val idx = missionLevels.indexOfFirst { it.starsEarned < STARS_TO_UNLOCK_LEVEL }
+                        if (idx != -1) {
+                            missionLevels = missionLevels.toMutableList().apply {
+                                this[idx] = this[idx].copy(starsEarned = this[idx].starsEarned + 1)
+                            }
+                        }
+                    }
+                    feedingFriend = null
+                }
+        )
     } else { // 카메라를 보여줄 상황이 아니면 메인 화면을 띄움
         Scaffold( // 화면의 기본 뼈대를 잡아주는 compose의 부품임
                 modifier = Modifier.fillMaxSize(),
@@ -227,7 +253,16 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                     if (tag !in savedMissionTags) savedMissionTags = savedMissionTags + tag
                 },
                 onDismiss = { missionSelectionFriend = null },
-                onConfirm = {
+                onConfirm = { goals ->
+                    currentGoals = goals
+                    coroutineScope.launch {
+                        try {
+                            goalRepository.postGoalTags(goals)
+                        } catch (e: Exception) {
+                            // 목표 기록은 서버가 참고만 하는 값이라, 실패해도 밥 먹기 흐름 자체는 막지 않음.
+                            Toast.makeText(context, "목표 전송에 실패했어요.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                     feedingFriend = missionFriend
                     missionSelectionFriend = null
                 }

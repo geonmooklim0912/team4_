@@ -42,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.data.Friend
 import com.example.team4uu.data.remote.TalkSocket
 import com.example.team4uu.data.remote.TokenManager
+import com.example.team4uu.ui.components.FeedingGoalCheckDialog
 import com.example.team4uu.ui.components.livingCharacterEffect
 import com.example.team4uu.ui.components.rememberTalkingCharacterPainter
 import com.example.team4uu.viewmodel.TalkViewModel
@@ -55,10 +56,14 @@ import com.example.team4uu.viewmodel.TalkViewModel
 @Composable
 fun FeedingScreen(
         friend: Friend?,
+        goals: List<String>,
         onClose: () -> Unit,
+        onFinishSession: (achievedGoals: Set<String>) -> Unit,
         talkViewModel: TalkViewModel = viewModel()
 ) {
         val context = LocalContext.current
+        // "끝내기"를 누르면 밥 먹기 시작할 때 골랐던 목표(goals)를 다시 보여주고 체크하게 함
+        var showFinishDialog by remember { mutableStateOf(false) }
         var hasCameraPermission by remember {
                 mutableStateOf(
                         ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -195,6 +200,29 @@ fun FeedingScreen(
                                 Modifier.align(Alignment.BottomEnd)
                                         .navigationBarsPadding()
                                         .padding(20.dp)
+                )
+
+                Button(
+                        onClick = { showFinishDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.9f)),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier =
+                                Modifier.align(Alignment.BottomStart)
+                                        .navigationBarsPadding()
+                                        .padding(20.dp)
+                ) {
+                        Text(text = "끝내기", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+        }
+
+        if (showFinishDialog) {
+                FeedingGoalCheckDialog(
+                        goals = goals,
+                        onConfirm = { achievedGoals ->
+                                showFinishDialog = false
+                                onFinishSession(achievedGoals)
+                        },
+                        onDismiss = { showFinishDialog = false }
                 )
         }
 }
