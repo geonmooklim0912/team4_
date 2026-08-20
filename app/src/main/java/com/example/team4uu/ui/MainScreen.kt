@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,7 +38,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
 import com.example.team4uu.data.ChildProfile
 import com.example.team4uu.data.ChildProfileStore
-import com.example.team4uu.data.Friend
 import com.example.team4uu.data.remote.GoalRepository
 import com.example.team4uu.data.remote.TokenManager
 import com.example.team4uu.ui.components.ChildNameEditDialog
@@ -67,39 +67,48 @@ private enum class AuthStep {
 // 앱 전체 라우팅: 로그인 여부 -> 카메라/테스트 화면 여부 -> 친구 유무에 따라 어떤 화면을 보여줄지 결정.
 @Composable // 화면을 그리는 함수라는 의미의 어노테이션
 fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
-    var showCamera by remember { mutableStateOf(false) } // ShowCamera 값이 바뀌면 화면을 다시만드는 상태 객체
-    var showMissionRoadmap by remember { mutableStateOf(false) }
+    // 🔴 여기 있는 상태들은 화면 회전 같은 설정 변경이 일어나면 액티비티가 통째로
+    //    destroy -> recreate 된다(MainActivity에 android:configChanges가 없음). remember는
+    //    Composition에 묶여 있어서 그때 다 날아가고, 회전할 때마다 로그인 화면으로 튕기거나
+    //    카메라/밥먹기 진행 중이던 걸 잃어버리는 원인이었다. rememberSaveable로 바꿔서
+    //    Bundle에 저장/복원되게 함 — 회전은 물론 백그라운드에서 프로세스가 잠깐 죽었다 복원되는
+    //    경우까지 버틴다(단, 앱을 완전히 종료했다 새로 여는 것과는 다름).
+    var showCamera by rememberSaveable { mutableStateOf(false) } // ShowCamera 값이 바뀌면 화면을 다시만드는 상태 객체
+    var showMissionRoadmap by rememberSaveable { mutableStateOf(false) }
     // "밥 먹기"를 누르면 이 친구를 들고 카메라 오버레이(FeedingScreen)로 이동. null이 아니면 그 화면을 보여줌.
-    var feedingFriend by remember { mutableStateOf<Friend?>(null) }
-    // "밥 먹기"를 누르면 먼저 오늘의 미션 선택 팝업을 띄움. 확인을 누르면 feedingFriend로 넘어가서 카메라가 열림.
-    var missionSelectionFriend by remember { mutableStateOf<Friend?>(null) }
+    // Friend 객체 자체는 Bundle에 못 담아서(Parcelable/Serializable 아님) id만 저장하고, 실제 Friend는
+    // friends 목록에서 찾아 씀(friendViewModel이 ViewModel이라 회전해도 friends는 이미 살아있음).
+    var feedingFriendId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // "밥 먹기"를 누르면 먼저 오늘의 미션 선택 팝업을 띄움. 확인을 누르면 feedingFriendId로 넘어가서 카메라가 열림.
+    var missionSelectionFriendId by rememberSaveable { mutableStateOf<Long?>(null) }
     // 촬영은 끝났고 이름을 기다리는 사진. null 이 아니면 이름 입력 팝업이 뜬다.
-    var pendingPhotoPath by remember { mutableStateOf<String?>(null) }
+    var pendingPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
     // TODO: 실제로는 자주 쓰는 태그를 백엔드/DB에 저장해야 함. 아직 그게 없어서 세션 동안만 유지되는 상태로 관리.
-    var savedMissionTags by remember { mutableStateOf(DEFAULT_MISSION_TAGS) }
+    var savedMissionTags by rememberSaveable { mutableStateOf(DEFAULT_MISSION_TAGS) }
     // 밥 먹기 시작 시 고른 오늘의 목표(최대 3개). "끝내기"를 누르면 그대로 다시 보여줌.
-    var currentGoals by remember { mutableStateOf(listOf<String>()) }
+    var currentGoals by rememberSaveable { mutableStateOf(listOf<String>()) }
     // 미션 로드맵 단계별 별 진행도. 1단계는 별 2개가 이미 채워진 상태로 시작함.
-    var missionLevels by remember { mutableStateOf(initialMissionLevels()) }
+    var missionLevels by rememberSaveable { mutableStateOf(initialMissionLevels()) }
     val goalRepository = remember { GoalRepository() }
     val coroutineScope = rememberCoroutineScope()
-    var isLoggedIn by remember {
-        mutableStateOf(false)
-    } // TODO: 백엔드 인증 연동 후 실제 로그인 상태(토큰 존재 여부 등)로 교체
-    var authStep by remember { mutableStateOf(AuthStep.LOGIN) }
+    // 토큰이 이미 있으면(회전으로 재생성된 것) 로그인 화면으로 튕기지 않고 로그인 상태를 그대로 유지.
+    var isLoggedIn by rememberSaveable { mutableStateOf(TokenManager.token != null) }
+    var authStep by rememberSaveable { mutableStateOf(AuthStep.LOGIN) }
     val context = LocalContext.current // 현재 앱의 컨텍스트를 갖고 옴(권환 확인 시스템 기능을 쓸 때 필요)
     // 회원가입에서 받은 아이 이름·나이를 담아둔다. 대화(WS /doll/talk)를 열 때 쿼리로 붙이면
     // 인형이 아이 이름을 불러준다. remember 로 감싸야 리컴포지션마다 다시 만들지 않는다.
     val childProfileStore = remember(context) { ChildProfileStore(context) }
     val friends by friendViewModel.friends.collectAsState() // Room DB에 저장된 친구 목록(실시간 반영)
+    val feedingFriend = friends.find { it.id == feedingFriendId }
+    val missionFriend = friends.find { it.id == missionSelectionFriendId }
     val isCreatingFriend by
             friendViewModel.isCreatingFriend.collectAsState() // 사진을 서버로 보내 인형으로 변환하는 중인지
     val authViewModel: AuthViewModel = viewModel()
 
     // 홈 화면 좌측 상단 톱니바퀴 -> 설정 메뉴 -> 관심사 변경/자녀 이름 변경 팝업으로 이어지는 흐름의 상태
-    var showSettingsMenu by remember { mutableStateOf(false) }
-    var showInterestEditDialog by remember { mutableStateOf(false) }
-    var showChildNameEditDialog by remember { mutableStateOf(false) }
+    var showSettingsMenu by rememberSaveable { mutableStateOf(false) }
+    var showInterestEditDialog by rememberSaveable { mutableStateOf(false) }
+    var showChildNameEditDialog by rememberSaveable { mutableStateOf(false) }
 
     // 카메라 권한 요청을 띄우는 팝업
     val permissionLauncher =
@@ -176,7 +185,7 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
         FeedingScreen(
                 friend = feedingFriend,
                 goals = currentGoals,
-                onClose = { feedingFriend = null },
+                onClose = { feedingFriendId = null },
                 onFinishSession = { achievedGoals ->
                     // 3개 중 2개 이상 달성했으면 미션 로드맵에서 아직 다 못 채운 첫 단계의
                     // 왼쪽 별부터 하나 채운다.
@@ -188,7 +197,7 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                             }
                         }
                     }
-                    feedingFriend = null
+                    feedingFriendId = null
                 }
         )
     } else { // 카메라를 보여줄 상황이 아니면 메인 화면을 띄움
@@ -218,7 +227,7 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                                 friends = friends,
                                 onAddFriendClick = ::requestCameraOrOpen,
                                 onMissionRoadmapClick = { showMissionRoadmap = true },
-                                onFeedClick = { friend -> missionSelectionFriend = friend },
+                                onFeedClick = { friend -> missionSelectionFriendId = friend.id },
                                 onSettingsClick = { showSettingsMenu = true }
                         )
                     }
@@ -247,7 +256,6 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
         )
     }
 
-    val missionFriend = missionSelectionFriend
     if (missionFriend != null) {
         FeedMissionDialog(
                 savedTags = savedMissionTags,
@@ -255,7 +263,7 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                 onSaveTagPermanently = { tag ->
                     if (tag !in savedMissionTags) savedMissionTags = savedMissionTags + tag
                 },
-                onDismiss = { missionSelectionFriend = null },
+                onDismiss = { missionSelectionFriendId = null },
                 onConfirm = { goals ->
                     currentGoals = goals
                     coroutineScope.launch {
@@ -266,8 +274,8 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                             Toast.makeText(context, "목표 전송에 실패했어요.", Toast.LENGTH_SHORT).show()
                         }
                     }
-                    feedingFriend = missionFriend
-                    missionSelectionFriend = null
+                    feedingFriendId = missionFriend.id
+                    missionSelectionFriendId = null
                 }
         )
     }
