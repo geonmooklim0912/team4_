@@ -13,7 +13,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,16 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.team4uu.R
+import com.example.team4uu.ui.MissionLevelProgress
+import com.example.team4uu.ui.STARS_TO_UNLOCK_LEVEL
 import com.example.team4uu.ui.theme.FriendPink
 import kotlin.math.cos
 import kotlin.math.sin
-
-// TODO: 지금은 화면 자체 확인용 placeholder 데이터. 실제 미션 진행 상황(별 개수)이 저장되는 곳이
-// 생기면(ViewModel/DB 등) 거기서 받아오도록 교체. starsEarned은 0~STARS_TO_UNLOCK 사이 값.
-private data class MissionLevel(val level: Int, val starsEarned: Int)
-
-private const val TOTAL_LEVELS = 8
-private const val STARS_TO_UNLOCK = 3
 
 private val NODE_CIRCLE_SIZE = 56.dp // 레벨 숫자/자물쇠가 들어가는 원
 private val NODE_SIZE = 92.dp // 원 + 둘레를 감싸는 별까지 포함한 전체 노드 크기(부모에서 중심 좌표 계산에 씀)
@@ -49,7 +43,7 @@ private val STAR_ANGLES_DEGREES = listOf(-120.0, -90.0, -60.0)
 // HomeOptionsPanel의 미션로드맵 버튼(왼쪽 아이콘)을 누르면 오는 화면.
 // 게임처럼 길을 따라 단계가 있고, 각 단계에서 별 3개를 모으면 다음 단계 잠금이 풀리는 구조.
 @Composable
-fun MissionRoadmapScreen(onClose: () -> Unit) {
+fun MissionRoadmapScreen(levels: List<MissionLevelProgress>, onClose: () -> Unit) {
      val levelPositions = listOf(
         0.44f to 0.84f, // 1
         0.80f to 0.79f, // 2
@@ -60,10 +54,6 @@ fun MissionRoadmapScreen(onClose: () -> Unit) {
         0.70f to 0.23f, // 7
         0.62f to 0.065f // 8
     )
-    // TODO: 실제 진행 데이터 생기기 전까지는 아무것도 완료되지 않은 초기 상태(1단계만 잠금 해제)로 시작
-    val levels = remember {
-        (1..TOTAL_LEVELS).map { MissionLevel(level = it, starsEarned = 0) }
-    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenWidth = maxWidth
@@ -77,7 +67,7 @@ fun MissionRoadmapScreen(onClose: () -> Unit) {
         )
 
         levels.forEachIndexed { index, missionLevel ->
-            val unlocked = index == 0 || levels[index - 1].starsEarned >= STARS_TO_UNLOCK
+            val unlocked = index == 0 || levels[index - 1].starsEarned >= STARS_TO_UNLOCK_LEVEL
             val (fx, fy) = levelPositions[index]
 
             MissionLevelNode(
@@ -104,7 +94,7 @@ fun MissionRoadmapScreen(onClose: () -> Unit) {
 
 // 단계 하나: 원형 노드(잠금 해제면 단계 숫자, 아니면 자물쇠) 둘레를 별 3개가 감싸는 형태.
 @Composable
-private fun MissionLevelNode(level: MissionLevel, unlocked: Boolean, modifier: Modifier = Modifier) {
+private fun MissionLevelNode(level: MissionLevelProgress, unlocked: Boolean, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier.size(NODE_SIZE),
         contentAlignment = Alignment.Center

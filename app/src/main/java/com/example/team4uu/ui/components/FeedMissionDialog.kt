@@ -41,7 +41,12 @@ val DEFAULT_MISSION_TAGS = listOf("골고루 먹기", "밥 한 공기", "당근 
 
 private val CATEGORY_MISSION_TAGS = listOf("식사 예절", "물 마시기", "편식 정복")
 
-// "밥 먹기"를 누르면 뜨는 오늘의 미션 선택 팝업.
+// 밥 먹기 한 번에 고를 수 있는 오늘의 목표 개수. FeedingGoalCheckDialog("끝내기")에서
+// 이 개수 중 몇 개를 달성했는지 체크한다.
+const val MAX_GOALS_PER_SESSION = 3
+
+// "밥 먹기"를 누르면 뜨는 오늘의 목표 선택 팝업. 최대 MAX_GOALS_PER_SESSION(3)개까지 고를 수 있고,
+// 여기서 고른 목표가 밥 먹기가 끝날 때(FeedingGoalCheckDialog) 그대로 다시 뜬다.
 // savedTags(자주 쓰는 태그 목록)는 팝업을 닫아도 유지되고(호출부에서 상태를 들고 있음),
 // "저장" 버튼으로 추가한 임시 태그는 이 팝업 안에서만 유지되다가 팝업이 닫히면 사라짐.
 @Composable
@@ -50,11 +55,19 @@ fun FeedMissionDialog(
     onDeleteTag: (String) -> Unit,
     onSaveTagPermanently: (String) -> Unit,
     onDismiss: () -> Unit,
-    onConfirm: (selectedMission: String?) -> Unit
+    onConfirm: (selectedGoals: List<String>) -> Unit
 ) {
     var tempTags by remember { mutableStateOf(listOf<String>()) }
-    var selectedTag by remember { mutableStateOf<String?>(null) }
+    var selectedTags by remember { mutableStateOf(listOf<String>()) }
     var showAddDialog by remember { mutableStateOf(false) }
+
+    fun toggle(tag: String) {
+        selectedTags = when {
+            tag in selectedTags -> selectedTags - tag
+            selectedTags.size >= MAX_GOALS_PER_SESSION -> selectedTags // 이미 3개 골랐으면 더 못 고름
+            else -> selectedTags + tag
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -68,6 +81,12 @@ fun FeedMissionDialog(
                     fontSize = 14.sp,
                     color = Color.Black
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "오늘의 목표를 최대 ${MAX_GOALS_PER_SESSION}개까지 고를 수 있어요 (${selectedTags.size}/$MAX_GOALS_PER_SESSION)",
+                    fontSize = 12.sp,
+                    color = Color.DarkGray
+                )
                 Spacer(modifier = Modifier.height(12.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -76,11 +95,11 @@ fun FeedMissionDialog(
                     (savedTags + tempTags).forEach { tag ->
                         MissionTagChip(
                             text = tag,
-                            selected = tag == selectedTag,
-                            onClick = { selectedTag = tag },
+                            selected = tag in selectedTags,
+                            onClick = { toggle(tag) },
                             onDelete = {
                                 if (tag in savedTags) onDeleteTag(tag) else tempTags = tempTags - tag
-                                if (selectedTag == tag) selectedTag = null
+                                selectedTags = selectedTags - tag
                             }
                         )
                     }
@@ -98,8 +117,8 @@ fun FeedMissionDialog(
                     CATEGORY_MISSION_TAGS.forEach { tag ->
                         CategoryTagChip(
                             text = tag,
-                            selected = tag == selectedTag,
-                            onClick = { selectedTag = tag }
+                            selected = tag in selectedTags,
+                            onClick = { toggle(tag) }
                         )
                     }
                 }
@@ -126,7 +145,8 @@ fun FeedMissionDialog(
 
                 Spacer(modifier = Modifier.height(20.dp))
                 Button(
-                    onClick = { onConfirm(selectedTag) },
+                    onClick = { onConfirm(selectedTags) },
+                    enabled = selectedTags.isNotEmpty(),
                     colors = ButtonDefaults.buttonColors(containerColor = FriendPink),
                     shape = RoundedCornerShape(28.dp),
                     modifier = Modifier
@@ -148,7 +168,7 @@ fun FeedMissionDialog(
                 } else {
                     tempTags = tempTags + text
                 }
-                selectedTag = text
+                toggle(text)
                 showAddDialog = false
             }
         )
