@@ -123,7 +123,7 @@ fun MainHomeContent(
     }
     val selectedFriend = friends.find { it.id == selectedFriendId }
 
-    var selectorExpanded by remember { mutableStateOf(false) }
+    var selectorExpanded by remember { mutableStateOf(true) }
     // 방 배경을 오른쪽에서 왼쪽으로 스와이프하면 ROOM_BACKGROUNDS 순서대로 넘어감.
     // 패널 바로 위 점 인디케이터에서도 현재 페이지를 읽어야 해서 Column 최상단에서 선언.
     val backgroundPagerState = rememberPagerState(pageCount = { ROOM_BACKGROUNDS.size })
@@ -588,14 +588,13 @@ private fun VoiceControlRow(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color.White)
                 .clickable(onClick = onCameraToggleClick),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_camera_toggle),
                 contentDescription = if (isCameraBackgroundActive) "배경으로 돌아가기" else "카메라 배경으로 전환",
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(35.dp)
             )
         }
     }

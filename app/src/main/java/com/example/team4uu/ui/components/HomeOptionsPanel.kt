@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EmojiFlags
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material.icons.filled.Restaurant
@@ -60,7 +59,8 @@ import kotlinx.coroutines.delay
 // Column에 정상적으로 포함되는 실제 높이라서(오프셋이 아님) 레이아웃에 빈틈이 생기지 않음.
 // 새 친구 등록하기/미션로드맵/친구 모아보기/밥먹기/놀기를 담은 옵션 패널.
 // 이 컴포저블은 "펼쳐진 상태"만 그림 — 접혀 있을 때는 아예 화면에서 빠지고(HomeScreen.kt 쪽에서 처리),
-// 그 자리에 화살표 버튼만 방 위에 떠 있음. 화살표를 누르거나 아래로 쓸어내리면 onCollapse가 호출되어 패널이 사라짐.
+// 그 자리에 위로 향하는 화살표 버튼만 방 위에 떠 있음. "놀기" 버튼을 누르거나 아래로 쓸어내리면
+// onCollapse가 호출되어 패널이 사라짐.
 @Composable
 fun HomeOptionsPanel(
     friends: List<Friend>,
@@ -89,17 +89,6 @@ fun HomeOptionsPanel(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(10.dp))
-
-            IconButton(
-                onClick = onCollapse,
-                modifier = Modifier.size(30.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = "옵션 접기",
-                    tint = Color.DarkGray
-                )
-            }
 
             AnimatedContent(
                 targetState = showFriendsGrid,
@@ -142,7 +131,7 @@ fun HomeOptionsPanel(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             FeedButton(modifier = Modifier.weight(1f), onClick = onFeedClick)
-                            PlayButton(modifier = Modifier.weight(1f))
+                            PlayButton(modifier = Modifier.weight(1f), onClick = onCollapse)
                         }
                     }
                 }
@@ -275,8 +264,9 @@ private fun FeedButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PlayButton(modifier: Modifier = Modifier) {
+private fun PlayButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
+        onClick = onClick,
         color = FriendCardTan,
         shape = RoundedCornerShape(20.dp),
         modifier = modifier.height(80.dp)

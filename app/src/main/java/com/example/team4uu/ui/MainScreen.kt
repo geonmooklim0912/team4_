@@ -35,10 +35,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.team4uu.R
+import com.example.team4uu.data.ChildProfile
 import com.example.team4uu.data.ChildProfileStore
 import com.example.team4uu.data.Friend
 import com.example.team4uu.data.remote.GoalRepository
 import com.example.team4uu.data.remote.TokenManager
+import com.example.team4uu.ui.components.ChildNameEditDialog
 import com.example.team4uu.ui.components.DEFAULT_MISSION_TAGS
 import com.example.team4uu.ui.components.DollNameDialog
 import com.example.team4uu.ui.components.FeedMissionDialog
@@ -94,9 +96,10 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
             friendViewModel.isCreatingFriend.collectAsState() // 사진을 서버로 보내 인형으로 변환하는 중인지
     val authViewModel: AuthViewModel = viewModel()
 
-    // 홈 화면 좌측 상단 톱니바퀴 -> 설정 메뉴 -> 관심사 변경 팝업으로 이어지는 흐름의 상태
+    // 홈 화면 좌측 상단 톱니바퀴 -> 설정 메뉴 -> 관심사 변경/자녀 이름 변경 팝업으로 이어지는 흐름의 상태
     var showSettingsMenu by remember { mutableStateOf(false) }
     var showInterestEditDialog by remember { mutableStateOf(false) }
+    var showChildNameEditDialog by remember { mutableStateOf(false) }
 
     // 카메라 권한 요청을 띄우는 팝업
     val permissionLauncher =
@@ -269,11 +272,14 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
         )
     }
 
-    // 홈 화면 좌측 상단 톱니바퀴를 누르면 뜨는 설정 메뉴. "이름 변경"은 아직 백엔드 명세가 없어 자리만 잡아둠.
+    // 홈 화면 좌측 상단 톱니바퀴를 누르면 뜨는 설정 메뉴.
     if (showSettingsMenu) {
         SettingsMenuDialog(
                 onDismiss = { showSettingsMenu = false },
-                onEditNameClick = { showSettingsMenu = false /* TODO: 이름 변경 API 준비 후 구현 */ },
+                onEditNameClick = {
+                    showSettingsMenu = false
+                    showChildNameEditDialog = true
+                },
                 onEditInterestsClick = {
                     showSettingsMenu = false
                     showInterestEditDialog = true
@@ -300,6 +306,35 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                             onSuccess = {
                                 showInterestEditDialog = false
                                 Toast.makeText(context, "관심사가 변경되었습니다.", Toast.LENGTH_SHORT).show()
+                            },
+                            onError = { message ->
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            }
+                    )
+                }
+        )
+    }
+
+    if (showChildNameEditDialog) {
+        ChildNameEditDialog(
+                initialName = childProfileStore.load()?.name.orEmpty(),
+                onDismiss = { showChildNameEditDialog = false },
+                onConfirm = { newName ->
+                    authViewModel.updateName(
+                            name = newName,
+                            onSuccess = {
+                                // 나이·관심사는 그대로 두고 이름만 바꿔서 로컬(ChildProfileStore)에도 반영.
+                                // TalkViewModel이 대화 연결 시 이 값을 읽어 인형이 부르는 이름으로 쓴다.
+                                val existing = childProfileStore.load()
+                                childProfileStore.save(
+                                        ChildProfile(
+                                                name = newName,
+                                                age = existing?.age ?: ChildProfileStore.DEFAULT_AGE,
+                                                interests = existing?.interests ?: emptyList()
+                                        )
+                                )
+                                showChildNameEditDialog = false
+                                Toast.makeText(context, "자녀 이름이 변경되었습니다.", Toast.LENGTH_SHORT).show()
                             },
                             onError = { message ->
                                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()

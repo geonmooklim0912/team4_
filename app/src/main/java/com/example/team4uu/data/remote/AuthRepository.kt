@@ -5,6 +5,7 @@ import com.example.team4uu.data.remote.dto.LoginResponse
 import com.example.team4uu.data.remote.dto.SignUpRequest
 import com.example.team4uu.data.remote.dto.SignUpResponse
 import com.example.team4uu.data.remote.dto.UpdateKeywordRequest
+import com.example.team4uu.data.remote.dto.UpdateNameRequest
 
 class AuthRepository {
     suspend fun login(username: String, password: String): LoginResponse {
@@ -38,5 +39,12 @@ class AuthRepository {
             throw Exception("관심사 변경에 실패했습니다.")
         }
         TokenManager.keywords = keywords
+    }
+
+    suspend fun updateName(name: String) {
+        val response = RetrofitClient.api.updateName(UpdateNameRequest(name))
+        if (!response.isSuccessful) {
+            throw Exception("이름 변경에 실패했습니다.")
+        }
     }
 }
