@@ -1,6 +1,5 @@
 package com.example.team4uu.ui.components
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,7 +13,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -432,7 +429,7 @@ private fun EmptyFriendSlot() {
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(20))
                 .background(FriendCardTan)
         )
         Spacer(modifier = Modifier.height(6.dp))
@@ -463,8 +460,8 @@ private fun LockedFriendMessageBubble(requiredStage: Int, modifier: Modifier = M
 
 @Composable
 private fun FriendThumbnail(friend: Friend, selected: Boolean, onClick: () -> Unit) {
-    // TODO: 지금은 촬영 원본 사진(imagePath)을 썸네일로 보여줌. 배경 제거 캐릭터 이미지가 생기면 그걸로 교체.
-    val bitmap = remember(friend.imagePath) { BitmapFactory.decodeFile(friend.imagePath)?.asImageBitmap() }
+    // 촬영 원본 사진이 아니라 서버에서 배경을 제거해 받아온 캐릭터 이미지를 썸네일로 보여줌.
+    val characterPainter = rememberFriendCharacterPainter(friend)
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -475,16 +472,14 @@ private fun FriendThumbnail(friend: Friend, selected: Boolean, onClick: () -> Un
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap,
-                    contentDescription = friend.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                )
-            }
+            Image(
+                painter = characterPainter,
+                contentDescription = friend.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20))
+            )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(

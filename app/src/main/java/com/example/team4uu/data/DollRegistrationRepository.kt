@@ -76,8 +76,7 @@ class DollRegistrationRepository(
 
         spriteStorage.commit(temp, friendId)
 
-        // characterAssetPath 를 채워야 화면이 목업 대신 진짜 캐릭터를 그린다.
-        // (FriendCharacterPainter 가 이 값이 null 이면 character_example2 로 떨어진다)
+        // characterAssetPath 를 채워야 화면이 빈 자리 대신 진짜 캐릭터를 그린다.
         friendRepository.getFriend(friendId)?.let { friend ->
             friendRepository.updateFriend(
                 friend.copy(characterAssetPath = spriteStorage.baseSpriteFile(friendId).absolutePath)

@@ -65,7 +65,7 @@ fun ChildNameEditDialog(
                     onValueChange = { name = it },
                     singleLine = true,
                     isError = trimmed.isNotEmpty() && error != null,
-                    placeholder = { Text("바꿀 이름 입력", color = Color.LightGray) },
+                    placeholder = { Text("이름 입력", color = Color.LightGray) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
