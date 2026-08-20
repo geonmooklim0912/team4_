@@ -9,14 +9,18 @@ import com.example.team4uu.data.DollRegistrationRepository
 import com.example.team4uu.data.Friend
 import com.example.team4uu.data.FriendRepository
 import com.example.team4uu.data.SpriteStorage
+import com.example.team4uu.R
 import com.example.team4uu.data.remote.DollRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class FriendViewModel(application: Application) : AndroidViewModel(application) {
@@ -47,6 +51,34 @@ class FriendViewModel(application: Application) : AndroidViewModel(application) 
     // 로그인 성공 시 호출.
     fun setCurrentUser(username: String) {
         ownerUsername.value = username
+    }
+
+    // 심사용 데모 계정(test1). 앱에 미리 내장된 예시 사진(res/drawable/example_doll)을
+    // 실제로 POST /doll/stylize에 보내서 받은 결과로 등록한다 — 진짜 친구 등록과 완전히
+    // 같은 절차(변환 -> 스프라이트 저장 -> Room 등록, createFriendFromPhoto)를 그대로 탄다.
+    // APK를 새로 설치해도(로컬 Room이 비어 있어도) 이 계정으로 로그인만 하면 항상 다시 등록된다.
+    fun seedDemoFriendIfNeeded(username: String) {
+        if (username != DEMO_USERNAME) return
+        viewModelScope.launch {
+            val alreadyHasFriends = repository.friendsForOwner(username).first().isNotEmpty()
+            if (alreadyHasFriends) return@launch
+
+            val demoPhotoPath = withContext(Dispatchers.IO) { copyDemoDollToCache().absolutePath }
+            createFriendFromPhoto(
+                name = DEMO_FRIEND_NAME,
+                imagePath = demoPhotoPath,
+                onError = { message -> Log.w(TAG, "데모 친구 등록 실패: $message") }
+            )
+        }
+    }
+
+    private fun copyDemoDollToCache(): File {
+        val context = getApplication<Application>()
+        val dest = File(context.cacheDir, "demo_doll.jpg")
+        context.resources.openRawResource(R.drawable.example_doll).use { input ->
+            dest.outputStream().use { output -> input.copyTo(output) }
+        }
+        return dest
     }
 
     // 로그아웃 시 호출. 현재 계정을 비워서 friends가 다시 빈 목록이 되게 함.
@@ -106,5 +138,7 @@ class FriendViewModel(application: Application) : AndroidViewModel(application) 
 
     private companion object {
         const val TAG = "FriendViewModel"
+        const val DEMO_USERNAME = "test1"
+        const val DEMO_FRIEND_NAME = "포비"
     }
 }

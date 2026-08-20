@@ -156,6 +156,8 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                                     // 이 계정에 친구가 하나도 없으면(처음 로그인) friends가 빈 목록이라
                                     // 아래 Scaffold 분기에서 자동으로 EmptyFriendContent(온보딩)가 뜸.
                                     friendViewModel.setCurrentUser(username)
+                                    // 심사용 데모 계정(test1)은 친구가 비어 있으면 예시 인형으로 자동으로 채움.
+                                    friendViewModel.seedDemoFriendIfNeeded(username)
                                     isLoggedIn = true
                                 },
                                 onSignUpClick = { authStep = AuthStep.SIGNUP }
