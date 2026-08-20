@@ -21,6 +21,7 @@ fun SettingsMenuDialog(
     onDismiss: () -> Unit,
     onEditNameClick: () -> Unit,
     onEditInterestsClick: () -> Unit,
+    onManageFriendsClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -34,6 +35,8 @@ fun SettingsMenuDialog(
                 SettingsMenuRow(text = "자녀 이름 변경", onClick = onEditNameClick)
                 Spacer(modifier = Modifier.height(4.dp))
                 SettingsMenuRow(text = "관심사 변경", onClick = onEditInterestsClick)
+                Spacer(modifier = Modifier.height(4.dp))
+                SettingsMenuRow(text = "친구 목록 관리", onClick = onManageFriendsClick)
                 Spacer(modifier = Modifier.height(12.dp))
                 Box(
                     modifier = Modifier

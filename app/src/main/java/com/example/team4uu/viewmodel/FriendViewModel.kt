@@ -89,6 +89,21 @@ class FriendViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // 설정 > 친구 목록 관리에서 이름 변경/삭제. 친구는 서버에 등록되지 않고 로컬(Room)에만
+    // 있어서 네트워크 요청 없이 바로 반영된다 — friends가 Room을 구독하는 StateFlow라
+    // 화면도 자동으로 갱신됨.
+    fun renameFriend(friend: Friend, newName: String) {
+        viewModelScope.launch {
+            repository.updateFriend(friend.copy(name = newName))
+        }
+    }
+
+    fun deleteFriend(friend: Friend) {
+        viewModelScope.launch {
+            repository.deleteFriend(friend)
+        }
+    }
+
     private companion object {
         const val TAG = "FriendViewModel"
     }

@@ -44,6 +44,7 @@ import com.example.team4uu.ui.components.ChildNameEditDialog
 import com.example.team4uu.ui.components.DEFAULT_MISSION_TAGS
 import com.example.team4uu.ui.components.DollNameDialog
 import com.example.team4uu.ui.components.FeedMissionDialog
+import com.example.team4uu.ui.components.FriendManageDialog
 import com.example.team4uu.ui.components.INTEREST_OPTIONS
 import com.example.team4uu.ui.components.InterestEditDialog
 import com.example.team4uu.ui.components.SettingsMenuDialog
@@ -105,6 +106,7 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
     var showSettingsMenu by remember { mutableStateOf(false) }
     var showInterestEditDialog by remember { mutableStateOf(false) }
     var showChildNameEditDialog by remember { mutableStateOf(false) }
+    var showFriendManageDialog by remember { mutableStateOf(false) }
 
     // 카메라 권한 요청을 띄우는 팝업
     val permissionLauncher =
@@ -289,6 +291,10 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                     showSettingsMenu = false
                     showInterestEditDialog = true
                 },
+                onManageFriendsClick = {
+                    showSettingsMenu = false
+                    showFriendManageDialog = true
+                },
                 onLogoutClick = {
                     showSettingsMenu = false
                     TokenManager.clear()
@@ -362,6 +368,15 @@ fun MainScreen(friendViewModel: FriendViewModel = viewModel()) {
                             }
                     )
                 }
+        )
+    }
+
+    if (showFriendManageDialog) {
+        FriendManageDialog(
+                friends = friends,
+                onDismiss = { showFriendManageDialog = false },
+                onRenameFriend = { friend, newName -> friendViewModel.renameFriend(friend, newName) },
+                onDeleteFriend = { friend -> friendViewModel.deleteFriend(friend) }
         )
     }
 
