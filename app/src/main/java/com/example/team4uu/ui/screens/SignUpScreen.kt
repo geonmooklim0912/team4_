@@ -180,7 +180,7 @@ fun SignUpScreen(onSignUpComplete: () -> Unit, onBackToLogin: () -> Unit) {
                 label = "나이",
                 value = childAge,
                 onValueChange = { input -> if (input.all { it.isDigit() }) childAge = input },
-                placeholder = "아이의 나이를 입력해주세요",
+                placeholder = "아이의 나이를 입력해주세요(숫자만)",
                 keyboardType = KeyboardType.Number
             )
 
